@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import Lock
+from typing import Callable, TypeVar
 from uuid import UUID
 
 from .config import settings
@@ -13,6 +14,9 @@ from .nlu import InHouseNLUEngine
 class Decision:
     text: str
     escalate: bool
+
+
+T = TypeVar("T")
 
 
 class SessionStore:
@@ -33,6 +37,16 @@ class SessionStore:
     def save(self, state: SessionState) -> None:
         with self._lock:
             self._sessions[state.session_id] = state
+
+    def mutate(self, session_id: UUID, mutator: Callable[[SessionState], T]) -> T:
+        with self._lock:
+            state = self._sessions.get(session_id)
+            if state is None:
+                state = SessionState(session_id=session_id)
+                self._sessions[session_id] = state
+            result = mutator(state)
+            self._sessions[session_id] = state
+            return result
 
 
 class VoiceSalesAssistantService:
@@ -72,33 +86,33 @@ class VoiceSalesAssistantService:
         )
 
     def handle_turn(self, session_id: UUID, text: str) -> AssistantTurnResponse:
-        state = self.sessions.get(session_id)
-        if state is None:
-            state = self.sessions.create(session_id)
-
         nlu_result = self.nlu.analyze(text)
         decision = self.decide_response(text, nlu_result.intent, nlu_result.confidence)
+        now = datetime.now(timezone.utc)
 
-        if nlu_result.sentiment.value == "negative":
-            state.consecutive_negative_turns += 1
-        else:
-            state.consecutive_negative_turns = 0
+        def _update_state(state: SessionState) -> tuple[bool, str]:
+            if nlu_result.sentiment.value == "negative":
+                state.consecutive_negative_turns += 1
+            else:
+                state.consecutive_negative_turns = 0
 
-        force_escalation = state.consecutive_negative_turns >= settings.negative_sentiment_escalation_turns
-        escalate = decision.escalate or force_escalation
+            force_escalation = state.consecutive_negative_turns >= settings.negative_sentiment_escalation_turns
+            escalate = decision.escalate or force_escalation
 
-        response_text = decision.text
-        if nlu_result.sentiment.value == "negative" and not escalate:
-            response_text = f"I am sorry for the frustration. {response_text}"
-        if force_escalation:
-            response_text = "I can hear your frustration. I am connecting you with a human agent right now."
+            response_text = decision.text
+            if nlu_result.sentiment.value == "negative" and not escalate:
+                response_text = f"I am sorry for the frustration. {response_text}"
+            if force_escalation:
+                response_text = "I can hear your frustration. I am connecting you with a human agent right now."
 
-        state.turns += 1
-        state.escalated = escalate
-        state.last_intent = nlu_result.intent
-        state.last_sentiment = nlu_result.sentiment
-        state.updated_at_utc = datetime.now(timezone.utc)
-        self.sessions.save(state)
+            state.turns += 1
+            state.escalated = escalate
+            state.last_intent = nlu_result.intent
+            state.last_sentiment = nlu_result.sentiment
+            state.updated_at_utc = now
+            return escalate, response_text
+
+        escalate, response_text = self.sessions.mutate(session_id, _update_state)
 
         return AssistantTurnResponse(
             text=response_text,
