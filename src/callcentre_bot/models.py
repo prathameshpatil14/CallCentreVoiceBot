@@ -47,6 +47,7 @@ class AssistantTurnResponse:
     confidence: float
     escalate_to_human: bool
     session_id: UUID
+    request_id: str
     timestamp_utc: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
@@ -66,6 +67,10 @@ class SessionState:
     escalated: bool = False
     last_intent: Intent = Intent.unknown
     last_sentiment: Sentiment = Sentiment.neutral
+    customer_name: str = ""
+    account_type: str = ""
+    unresolved_issues: list[str] = field(default_factory=list)
+    campaign: str = "default"
     updated_at_utc: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
@@ -76,5 +81,25 @@ class SessionState:
             "escalated": self.escalated,
             "last_intent": self.last_intent.value,
             "last_sentiment": self.last_sentiment.value,
+            "customer_name": self.customer_name,
+            "account_type": self.account_type,
+            "unresolved_issues": self.unresolved_issues,
+            "campaign": self.campaign,
             "updated_at_utc": self.updated_at_utc.isoformat(),
         }
+
+    @classmethod
+    def from_db_row(cls, row: Any) -> "SessionState":
+        return cls(
+            session_id=UUID(row["session_id"]),
+            turns=int(row["turns"]),
+            consecutive_negative_turns=int(row["consecutive_negative_turns"]),
+            escalated=bool(row["escalated"]),
+            last_intent=Intent(str(row["last_intent"])),
+            last_sentiment=Sentiment(str(row["last_sentiment"])),
+            customer_name=str(row["customer_name"] or ""),
+            account_type=str(row["account_type"] or ""),
+            unresolved_issues=(str(row["unresolved_issues"] or "").split("|") if row["unresolved_issues"] else []),
+            campaign=str(row["campaign"] or "default"),
+            updated_at_utc=datetime.fromisoformat(str(row["updated_at_utc"])),
+        )
