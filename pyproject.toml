@@ -10,9 +10,13 @@ requires-python = ">=3.11"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+callcentre_bot = ["data/*.jsonl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

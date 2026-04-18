@@ -93,6 +93,24 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(second["escalate_to_human"])
         self.assertTrue(third["escalate_to_human"])
 
+    def test_name_extraction_handles_missing_name_token(self) -> None:
+        create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")
+        with request.urlopen(create_req) as create_resp:
+            session_id = json.loads(create_resp.read().decode("utf-8"))["session_id"]
+
+        body = json.dumps({"text": "my name is   "}).encode("utf-8")
+        turn_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/turns",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(turn_req) as turn_resp:
+            reply = json.loads(turn_resp.read().decode("utf-8"))
+
+        self.assertIn("text", reply)
+        self.assertIn("request_id", reply)
+
 
 if __name__ == "__main__":
     unittest.main()
