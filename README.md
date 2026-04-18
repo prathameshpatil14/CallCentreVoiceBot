@@ -76,13 +76,28 @@ python scripts/evaluate_models.py
 - `MAX_REQUEST_BYTES` (default `32768`)
 - `RATE_LIMIT_PER_MINUTE` (default `120`)
 - `MODEL_VARIANT` (default `A`; supports simple A/B behavior)
-- `DB_BACKEND` (`sqlite` or `postgres`)
-- `POSTGRES_DSN` (required when `DB_BACKEND=postgres`)
-- `RETENTION_DAYS` (default `30`)
-- `ARCHIVE_INTERVAL_SECONDS` (default `3600`)
-- `API_KEYS` (comma-separated key rotation list)
-- `ROLE_REQUIRED_FOR_METRICS` (default `agent`)
-- `REQUIRE_TLS` (default `false`; set `true` behind reverse proxy)
-- `INTENT_THRESHOLD_SALES` / `INTENT_THRESHOLD_SUPPORT` / `INTENT_THRESHOLD_ESCALATION` / `INTENT_THRESHOLD_REFUND` / `INTENT_THRESHOLD_UPSELL`
-- `MAX_CLARIFICATIONS` / `MAX_RETRIES_BEFORE_TRANSFER`
-- `DRIFT_REPORT_PATH` / `DRIFT_REPORT_INTERVAL_SECONDS`
+
+
+## What these two APIs do
+
+### `GET /v1/sessions/{session_id}`
+Use this to fetch the **current conversation state** for a specific session.
+
+It returns things like:
+- total turns,
+- latest intent/sentiment,
+- whether escalation happened,
+- captured context (customer name/account type/campaign).
+
+You use this when dashboards/agents need to inspect a live call session.
+
+### `POST /v1/sessions/{session_id}/turns`
+Use this to send **one new customer utterance** to the bot for that session.
+
+Flow:
+1. You send JSON: `{"text": "customer message"}`.
+2. Bot runs NLU + policy + knowledge lookup.
+3. Bot updates session memory/persistence.
+4. API returns bot reply + intent/sentiment/confidence + escalation flag.
+
+This is the main endpoint that drives the conversation turn-by-turn.
