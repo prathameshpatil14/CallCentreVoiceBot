@@ -6,6 +6,7 @@ from urllib.error import HTTPError
 from urllib import request
 
 from callcentre_bot.api import create_http_server
+from callcentre_bot.config import settings
 
 
 class ApiTests(unittest.TestCase):
@@ -46,6 +47,27 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status, 200)
             body = json.loads(response.read().decode("utf-8"))
             self.assertIn("status", body)
+
+    def test_admin_drift_report_requires_api_key_when_configured(self) -> None:
+        original_api_key = settings.api_key
+        try:
+            object.__setattr__(settings, "api_key", "secret-key")
+            without_key = request.Request(
+                "http://127.0.0.1:18080/v1/admin/drift-report",
+                headers={"X-Role": "supervisor"},
+            )
+            with self.assertRaises(HTTPError) as raised:
+                request.urlopen(without_key)
+            self.assertEqual(raised.exception.code, 401)
+
+            with_key = request.Request(
+                "http://127.0.0.1:18080/v1/admin/drift-report",
+                headers={"X-Role": "supervisor", "X-API-Key": "secret-key"},
+            )
+            with request.urlopen(with_key) as response:
+                self.assertEqual(response.status, 200)
+        finally:
+            object.__setattr__(settings, "api_key", original_api_key)
 
     def test_sales_flow(self) -> None:
         create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")

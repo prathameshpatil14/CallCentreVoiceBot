@@ -78,19 +78,31 @@ class InHouseNLUEngine:
     def _calibrate_intent_thresholds(self, validation: list[tuple[str, str]]) -> dict[str, float]:
         if not validation:
             return {}
-        by_intent: dict[str, list[tuple[str, float]]] = {}
+        rows: list[tuple[str, str, float]] = []
         for expected_label, text in validation:
             predicted_label, confidence = self.intent_model.predict(text)
-            by_intent.setdefault(expected_label, []).append((predicted_label, confidence))
+            rows.append((expected_label, predicted_label, confidence))
 
         thresholds: dict[str, float] = {}
-        for intent_label, rows in by_intent.items():
+        for intent_label in {expected_label for expected_label, _, _ in rows}:
             best_threshold = 0.5
             best_f1 = -1.0
             for threshold in [x / 100 for x in range(35, 86, 5)]:
-                tp = sum(1 for predicted, conf in rows if predicted == intent_label and conf >= threshold)
-                fp = sum(1 for predicted, conf in rows if predicted != intent_label and conf >= threshold)
-                fn = sum(1 for predicted, conf in rows if predicted == intent_label and conf < threshold)
+                tp = sum(
+                    1
+                    for expected, predicted, conf in rows
+                    if expected == intent_label and predicted == intent_label and conf >= threshold
+                )
+                fp = sum(
+                    1
+                    for expected, predicted, conf in rows
+                    if expected != intent_label and predicted == intent_label and conf >= threshold
+                )
+                fn = sum(
+                    1
+                    for expected, predicted, conf in rows
+                    if expected == intent_label and (predicted != intent_label or conf < threshold)
+                )
                 precision = tp / max(1, tp + fp)
                 recall = tp / max(1, tp + fn)
                 f1 = (2 * precision * recall) / max(1e-9, precision + recall)

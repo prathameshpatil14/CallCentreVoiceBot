@@ -65,6 +65,9 @@ class BotRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/v1/admin/drift-report":
+            if not self._authorized():
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized", "request_id": request_id})
+                return
             if not self._has_role("supervisor"):
                 self._send_json(HTTPStatus.FORBIDDEN, {"error": "insufficient role", "request_id": request_id})
                 return
