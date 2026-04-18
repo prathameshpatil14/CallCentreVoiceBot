@@ -2,6 +2,7 @@ import json
 import threading
 import time
 import unittest
+from urllib.error import HTTPError
 from urllib import request
 
 from callcentre_bot.api import create_http_server
@@ -30,6 +31,21 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status, 200)
             body = json.loads(response.read().decode("utf-8"))
             self.assertIn("request_id", body)
+
+    def test_admin_drift_report_role_protection(self) -> None:
+        req = request.Request("http://127.0.0.1:18080/v1/admin/drift-report")
+        with self.assertRaises(HTTPError) as raised:
+            request.urlopen(req)
+        self.assertEqual(raised.exception.code, 403)
+
+        privileged = request.Request(
+            "http://127.0.0.1:18080/v1/admin/drift-report",
+            headers={"X-Role": "supervisor"},
+        )
+        with request.urlopen(privileged) as response:
+            self.assertEqual(response.status, 200)
+            body = json.loads(response.read().decode("utf-8"))
+            self.assertIn("status", body)
 
     def test_sales_flow(self) -> None:
         create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")

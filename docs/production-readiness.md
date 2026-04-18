@@ -3,19 +3,27 @@
 This file tracks roadmap implementation status.
 
 ## 1) Accuracy and model quality
-- ✅ Larger internal labeled dataset (jsonl samples) added.
+- ✅ Strict train/validation/test split added for intent + sentiment datasets.
 - ✅ Normalization added for spelling and Hinglish tokens.
-- ✅ Offline evaluation pipeline implemented (`scripts/evaluate_models.py`).
+- ✅ Per-intent confidence thresholds added (sales/support/escalation/refund/upsell).
+- ✅ Offline evaluation pipeline implemented on held-out test split (`scripts/evaluate_models.py`).
 - ✅ Model versioning + variant switch (`MODEL_VARIANT=A/B`) added.
+- ✅ Weekly drift monitoring support added (`/metrics` drift keys).
+- ✅ Weekly drift snapshots are persisted for operational review (`DRIFT_REPORT_PATH`).
 
 ## 2) Conversation quality
-- ✅ Context memory added to session state.
+- ✅ Context extraction improved with regex parsing (`name`, `account_id`, issue summary).
+- ✅ Journey state machine added (`sell`, `upsell`, `complaint`, `refund`).
 - ✅ Campaign-specific flows with disclaimers added.
 - ✅ Confidence-aware clarification path implemented.
+- ✅ Deterministic transfer policy via clarification/retry counters.
+- ✅ Policy reranker added for candidate response/action selection.
 - ✅ Compliance guardrails for restricted phrases added.
 
 ## 3) Persistence and reliability
 - ✅ Durable SQLite persistence for sessions + turns added.
+- ✅ Optional PostgreSQL backend added for concurrent production deployment.
+- ✅ Background archival + retention policy added (`turns_archive`, retention cutoff).
 - ✅ Structured logs and request IDs added.
 - ✅ Health/live/ready probes and graceful shutdown added.
 - ✅ Rate limiting + request payload size limit added.
@@ -26,7 +34,10 @@ This file tracks roadmap implementation status.
 - ⚠️ Full production-grade speech recognition/synthesis still requires substantial internal DSP/modeling work.
 
 ## 5) Security and operations
-- ✅ API key authentication added.
-- ✅ PII redaction for logged transcripts added.
-- ✅ Metrics endpoint for latency/error/escalation counters added.
+- ✅ API key authentication with key rotation support added.
+- ✅ Basic role-based access + audit trail events added.
+- ✅ PII redaction for logged transcripts expanded (PAN/Aadhaar/account variants).
+- ✅ Optional TLS enforcement for reverse-proxy deployments added.
+- ✅ Metrics endpoint for latency/error/escalation and drift counters added.
+- ✅ Supervisor drift report endpoint added (`/v1/admin/drift-report`).
 - ⚠️ Full load/chaos testing automation still pending and should be added before launch.

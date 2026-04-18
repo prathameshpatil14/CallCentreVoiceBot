@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import json
 from pathlib import Path
+from collections import Counter
 
 from .config import settings
 from .ml import NaiveBayesTextClassifier
@@ -13,6 +14,7 @@ class NLUResult:
     sentiment: Sentiment
     confidence: float
     model_version: str
+    intent_distribution: dict[str, float]
 
 
 NORMALIZATION_MAP = {
@@ -32,6 +34,8 @@ class InHouseNLUEngine:
         self.intent_model = NaiveBayesTextClassifier()
         self.sentiment_model = NaiveBayesTextClassifier()
         self.model_version = f"nlu-{settings.model_variant}-2026.04"
+        self.training_intent_distribution: dict[str, float] = {}
+        self.calibrated_thresholds: dict[str, float] = {}
         self._train_models()
 
     def _normalize(self, text: str) -> str:
@@ -53,11 +57,69 @@ class InHouseNLUEngine:
             examples.append((label, text))
         return examples
 
+    def _load_split_examples(self, prefix: str, split: str) -> list[tuple[str, str]]:
+        split_file = Path(__file__).parent / "data" / f"{prefix}_{split}.jsonl"
+        if split_file.exists():
+            return self._load_examples(split_file.name)
+        fallback = Path(__file__).parent / "data" / f"{prefix}_samples.jsonl"
+        if fallback.exists():
+            return self._load_examples(fallback.name)
+        return []
+
     def _train_models(self) -> None:
-        intent_examples = self._load_examples("intent_samples.jsonl")
-        sentiment_examples = self._load_examples("sentiment_samples.jsonl")
-        self.intent_model.train(intent_examples)
-        self.sentiment_model.train(sentiment_examples)
+        intent_train = self._load_split_examples("intent", "train")
+        intent_validation = self._load_split_examples("intent", "validation")
+        sentiment_train = self._load_split_examples("sentiment", "train")
+        self.intent_model.train(intent_train)
+        self.sentiment_model.train(sentiment_train)
+        self.training_intent_distribution = self._distribution([label for label, _ in intent_train])
+        self.calibrated_thresholds = self._calibrate_intent_thresholds(intent_validation)
+
+    def _calibrate_intent_thresholds(self, validation: list[tuple[str, str]]) -> dict[str, float]:
+        if not validation:
+            return {}
+        by_intent: dict[str, list[tuple[str, float]]] = {}
+        for expected_label, text in validation:
+            predicted_label, confidence = self.intent_model.predict(text)
+            by_intent.setdefault(expected_label, []).append((predicted_label, confidence))
+
+        thresholds: dict[str, float] = {}
+        for intent_label, rows in by_intent.items():
+            best_threshold = 0.5
+            best_f1 = -1.0
+            for threshold in [x / 100 for x in range(35, 86, 5)]:
+                tp = sum(1 for predicted, conf in rows if predicted == intent_label and conf >= threshold)
+                fp = sum(1 for predicted, conf in rows if predicted != intent_label and conf >= threshold)
+                fn = sum(1 for predicted, conf in rows if predicted == intent_label and conf < threshold)
+                precision = tp / max(1, tp + fp)
+                recall = tp / max(1, tp + fn)
+                f1 = (2 * precision * recall) / max(1e-9, precision + recall)
+                if f1 > best_f1:
+                    best_f1 = f1
+                    best_threshold = threshold
+            thresholds[intent_label] = best_threshold
+        return thresholds
+
+    def _distribution(self, labels: list[str]) -> dict[str, float]:
+        total = len(labels) or 1
+        counts = Counter(labels)
+        return {label: count / total for label, count in counts.items()}
+
+    def _intent_threshold(self, intent: Intent) -> float:
+        thresholds = {
+            Intent.sales: settings.intent_threshold_sales,
+            Intent.support: settings.intent_threshold_support,
+            Intent.escalation: settings.intent_threshold_escalation,
+            Intent.refund: settings.intent_threshold_refund,
+            Intent.upsell: settings.intent_threshold_upsell,
+        }
+        calibrated = self.calibrated_thresholds.get(intent.value)
+        if calibrated is not None:
+            return calibrated
+        return thresholds.get(intent, settings.confidence_threshold)
+
+    def is_intent_confident(self, intent: Intent, confidence: float) -> bool:
+        return confidence >= self._intent_threshold(intent)
 
     def analyze(self, text: str) -> NLUResult:
         normalized = self._normalize(text)
@@ -75,4 +137,10 @@ class InHouseNLUEngine:
             sentiment = Sentiment.neutral
 
         confidence = (intent_conf + sentiment_conf) / 2
-        return NLUResult(intent=intent, sentiment=sentiment, confidence=confidence, model_version=self.model_version)
+        return NLUResult(
+            intent=intent,
+            sentiment=sentiment,
+            confidence=confidence,
+            model_version=self.model_version,
+            intent_distribution=self.training_intent_distribution,
+        )
