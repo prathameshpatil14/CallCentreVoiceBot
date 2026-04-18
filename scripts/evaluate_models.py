@@ -46,8 +46,8 @@ def evaluate(label_type: str, records: list[dict[str, str]], predictor) -> None:
 
 def main() -> None:
     nlu = InHouseNLUEngine()
-    intent_records = load_jsonl(ROOT / "src/callcentre_bot/data/intent_samples.jsonl")
-    sentiment_records = load_jsonl(ROOT / "src/callcentre_bot/data/sentiment_samples.jsonl")
+    intent_records = load_jsonl(ROOT / "src/callcentre_bot/data/intent_test.jsonl")
+    sentiment_records = load_jsonl(ROOT / "src/callcentre_bot/data/sentiment_test.jsonl")
 
     evaluate("intent", intent_records, lambda text: nlu.analyze(text).intent.value)
     evaluate("sentiment", sentiment_records, lambda text: nlu.analyze(text).sentiment.value)

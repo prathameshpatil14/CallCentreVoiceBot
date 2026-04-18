@@ -5,19 +5,25 @@ A contact-center sales/support assistant with **no third-party API/model depende
 ## Implemented roadmap items
 
 1. **Accuracy/model quality**
-   - Larger local labeled dataset in `src/callcentre_bot/data/*.jsonl`.
+   - Strict train/validation/test datasets (`intent_*.jsonl`, `sentiment_*.jsonl`).
    - Text normalization for spelling/Hinglish terms in NLU.
-   - Offline evaluation script with precision/recall/F1/confusion matrix (`scripts/evaluate_models.py`).
+   - Per-intent confidence thresholds (sales/support/escalation/refund/upsell).
+   - Offline evaluation script with precision/recall/F1/confusion matrix on held-out test split (`scripts/evaluate_models.py`).
    - Model version/variant support via `MODEL_VARIANT`.
+   - Drift monitor comparing production intent distribution vs training baseline.
+   - Validation-set-based threshold calibration + persisted weekly drift reports.
 
 2. **Conversation quality**
-   - Context memory in session state (`customer_name`, `account_type`, unresolved issues, campaign).
+   - Context memory in session state (`customer_name`, `account_id`, `account_type`, issues, campaign).
+   - Explicit journey state machine (`sell`, `upsell`, `complaint`, `refund`).
    - Campaign-specific conversation flows + disclaimers.
-   - Confidence-aware clarification prompts.
+   - Confidence-aware clarification prompts + deterministic transfer policy (clarification/retry caps).
+   - Lightweight policy reranker to choose best template/action from candidates.
    - Compliance guardrails for restricted phrases.
 
 3. **Persistence/reliability**
-   - Durable SQLite-backed sessions + turn history.
+   - Durable SQLite-backed sessions + turn history with optional PostgreSQL backend.
+   - Background archival + retention policy for turn logs.
    - Request IDs and structured logs with PII redaction.
    - Graceful shutdown and health probes (`/health`, `/health/live`, `/health/ready`).
    - Request rate limiting and payload-size guardrails.
@@ -27,8 +33,12 @@ A contact-center sales/support assistant with **no third-party API/model depende
    - Basic voice activity detection helper.
 
 5. **Security/operations**
-   - Optional API key auth using `X-API-Key`.
-   - Metrics endpoint (`/metrics`) with request and latency counters.
+   - API key auth with key rotation (`API_KEYS` comma list) and audit trails.
+   - Basic role-based access for metrics endpoint (`X-Role`).
+   - Expanded PII redaction (PAN/Aadhaar/account variants).
+   - Optional TLS enforcement through reverse proxy (`REQUIRE_TLS=true`).
+   - Metrics endpoint (`/metrics`) with request, latency, and drift counters.
+   - Supervisor drift report endpoint (`/v1/admin/drift-report`).
 
 ## API endpoints
 
@@ -66,3 +76,13 @@ python scripts/evaluate_models.py
 - `MAX_REQUEST_BYTES` (default `32768`)
 - `RATE_LIMIT_PER_MINUTE` (default `120`)
 - `MODEL_VARIANT` (default `A`; supports simple A/B behavior)
+- `DB_BACKEND` (`sqlite` or `postgres`)
+- `POSTGRES_DSN` (required when `DB_BACKEND=postgres`)
+- `RETENTION_DAYS` (default `30`)
+- `ARCHIVE_INTERVAL_SECONDS` (default `3600`)
+- `API_KEYS` (comma-separated key rotation list)
+- `ROLE_REQUIRED_FOR_METRICS` (default `agent`)
+- `REQUIRE_TLS` (default `false`; set `true` behind reverse proxy)
+- `INTENT_THRESHOLD_SALES` / `INTENT_THRESHOLD_SUPPORT` / `INTENT_THRESHOLD_ESCALATION` / `INTENT_THRESHOLD_REFUND` / `INTENT_THRESHOLD_UPSELL`
+- `MAX_CLARIFICATIONS` / `MAX_RETRIES_BEFORE_TRANSFER`
+- `DRIFT_REPORT_PATH` / `DRIFT_REPORT_INTERVAL_SECONDS`

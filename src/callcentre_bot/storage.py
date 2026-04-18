@@ -28,7 +28,13 @@ class SqliteStore:
                     customer_name TEXT,
                     account_type TEXT,
                     unresolved_issues TEXT,
-                    campaign TEXT
+                    campaign TEXT,
+                    journey TEXT,
+                    journey_state TEXT,
+                    clarification_count INTEGER NOT NULL DEFAULT 0,
+                    retry_count INTEGER NOT NULL DEFAULT 0,
+                    account_id TEXT,
+                    issue_summary TEXT
                 )
                 """
             )
@@ -47,14 +53,48 @@ class SqliteStore:
                 )
                 """
             )
+            self.conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS turns_archive (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    request_id TEXT NOT NULL,
+                    user_text TEXT NOT NULL,
+                    bot_text TEXT NOT NULL,
+                    intent TEXT NOT NULL,
+                    sentiment TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    created_at_utc TEXT NOT NULL,
+                    archived_at_utc TEXT NOT NULL
+                )
+                """
+            )
+            self._ensure_columns()
             self.conn.commit()
+
+    def _ensure_columns(self) -> None:
+        columns = {row["name"] for row in self.conn.execute("PRAGMA table_info(sessions)")}
+        migrations = [
+            ("journey", "ALTER TABLE sessions ADD COLUMN journey TEXT"),
+            ("journey_state", "ALTER TABLE sessions ADD COLUMN journey_state TEXT"),
+            (
+                "clarification_count",
+                "ALTER TABLE sessions ADD COLUMN clarification_count INTEGER NOT NULL DEFAULT 0",
+            ),
+            ("retry_count", "ALTER TABLE sessions ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0"),
+            ("account_id", "ALTER TABLE sessions ADD COLUMN account_id TEXT"),
+            ("issue_summary", "ALTER TABLE sessions ADD COLUMN issue_summary TEXT"),
+        ]
+        for column, statement in migrations:
+            if column not in columns:
+                self.conn.execute(statement)
 
     def upsert_session(self, state: SessionState) -> None:
         with self.lock:
             self.conn.execute(
                 """
-                INSERT INTO sessions(session_id, turns, consecutive_negative_turns, escalated, last_intent, last_sentiment, updated_at_utc, customer_name, account_type, unresolved_issues, campaign)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                INSERT INTO sessions(session_id, turns, consecutive_negative_turns, escalated, last_intent, last_sentiment, updated_at_utc, customer_name, account_type, unresolved_issues, campaign, journey, journey_state, clarification_count, retry_count, account_id, issue_summary)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(session_id) DO UPDATE SET
                   turns=excluded.turns,
                   consecutive_negative_turns=excluded.consecutive_negative_turns,
@@ -65,7 +105,13 @@ class SqliteStore:
                   customer_name=excluded.customer_name,
                   account_type=excluded.account_type,
                   unresolved_issues=excluded.unresolved_issues,
-                  campaign=excluded.campaign
+                  campaign=excluded.campaign,
+                  journey=excluded.journey,
+                  journey_state=excluded.journey_state,
+                  clarification_count=excluded.clarification_count,
+                  retry_count=excluded.retry_count,
+                  account_id=excluded.account_id,
+                  issue_summary=excluded.issue_summary
                 """,
                 (
                     str(state.session_id),
@@ -79,6 +125,12 @@ class SqliteStore:
                     state.account_type,
                     "|".join(state.unresolved_issues),
                     state.campaign,
+                    state.journey.value,
+                    state.journey_state.value,
+                    state.clarification_count,
+                    state.retry_count,
+                    state.account_id,
+                    state.issue_summary,
                 ),
             )
             self.conn.commit()
@@ -109,3 +161,28 @@ class SqliteStore:
                 ),
             )
             self.conn.commit()
+
+    def archive_turns_older_than(self, cutoff_iso: str) -> int:
+        with self.lock:
+            rows = self.conn.execute("SELECT * FROM turns WHERE created_at_utc < ?", (cutoff_iso,)).fetchall()
+            for row in rows:
+                self.conn.execute(
+                    """
+                    INSERT INTO turns_archive(session_id, request_id, user_text, bot_text, intent, sentiment, confidence, created_at_utc, archived_at_utc)
+                    VALUES(?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        row["session_id"],
+                        row["request_id"],
+                        row["user_text"],
+                        row["bot_text"],
+                        row["intent"],
+                        row["sentiment"],
+                        row["confidence"],
+                        row["created_at_utc"],
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+            self.conn.execute("DELETE FROM turns WHERE created_at_utc < ?", (cutoff_iso,))
+            self.conn.commit()
+            return len(rows)
