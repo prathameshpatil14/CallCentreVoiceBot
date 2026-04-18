@@ -49,3 +49,7 @@ curl -X POST http://localhost:8080/v1/sessions/<SESSION_ID>/turns \
 
 - This version uses human-like responses, but does not claim true human consciousness/emotions.
 - To improve accuracy further, expand local training data in `src/callcentre_bot/nlu.py` and knowledge in `src/callcentre_bot/knowledge.py`.
+
+## Next step guidance
+
+For a concrete production hardening checklist and hardware sizing guidance, see `docs/production-readiness.md`.
