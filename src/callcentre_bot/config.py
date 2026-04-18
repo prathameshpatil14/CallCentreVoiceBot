@@ -28,6 +28,8 @@ class Settings:
     role_required_for_metrics: str
     max_clarifications: int
     max_retries_before_transfer: int
+    drift_report_path: str
+    drift_report_interval_seconds: int
 
 
 def _float_env(name: str, default: float) -> float:
@@ -77,4 +79,6 @@ settings = Settings(
     role_required_for_metrics=os.getenv("ROLE_REQUIRED_FOR_METRICS", "agent").strip().lower(),
     max_clarifications=_int_env("MAX_CLARIFICATIONS", 2, 1, 10),
     max_retries_before_transfer=_int_env("MAX_RETRIES_BEFORE_TRANSFER", 2, 1, 10),
+    drift_report_path=os.getenv("DRIFT_REPORT_PATH", "var/drift_weekly.jsonl").strip(),
+    drift_report_interval_seconds=_int_env("DRIFT_REPORT_INTERVAL_SECONDS", 604800, 300, 1209600),
 )

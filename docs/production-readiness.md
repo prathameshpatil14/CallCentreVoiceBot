@@ -9,6 +9,7 @@ This file tracks roadmap implementation status.
 - ✅ Offline evaluation pipeline implemented on held-out test split (`scripts/evaluate_models.py`).
 - ✅ Model versioning + variant switch (`MODEL_VARIANT=A/B`) added.
 - ✅ Weekly drift monitoring support added (`/metrics` drift keys).
+- ✅ Weekly drift snapshots are persisted for operational review (`DRIFT_REPORT_PATH`).
 
 ## 2) Conversation quality
 - ✅ Context extraction improved with regex parsing (`name`, `account_id`, issue summary).
@@ -16,6 +17,7 @@ This file tracks roadmap implementation status.
 - ✅ Campaign-specific flows with disclaimers added.
 - ✅ Confidence-aware clarification path implemented.
 - ✅ Deterministic transfer policy via clarification/retry counters.
+- ✅ Policy reranker added for candidate response/action selection.
 - ✅ Compliance guardrails for restricted phrases added.
 
 ## 3) Persistence and reliability
@@ -37,4 +39,5 @@ This file tracks roadmap implementation status.
 - ✅ PII redaction for logged transcripts expanded (PAN/Aadhaar/account variants).
 - ✅ Optional TLS enforcement for reverse-proxy deployments added.
 - ✅ Metrics endpoint for latency/error/escalation and drift counters added.
+- ✅ Supervisor drift report endpoint added (`/v1/admin/drift-report`).
 - ⚠️ Full load/chaos testing automation still pending and should be added before launch.

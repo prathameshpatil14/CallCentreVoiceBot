@@ -11,9 +11,10 @@ from .config import settings
 from .db import SessionPersistence, create_store
 from .flows import CAMPAIGN_FLOWS, RESTRICTED_PHRASES
 from .knowledge import KnowledgeRepository
-from .models import AssistantTurnResponse, Intent, Journey, JourneyStateName, SessionState
+from .models import AssistantTurnResponse, Intent, Journey, JourneyStateName, Sentiment, SessionState
 from .nlu import InHouseNLUEngine
 from .observability import AuditLogger, DriftMonitor, MetricStore, StructuredLogger, redact_pii
+from .policy import PolicyCandidate, PolicyReranker
 
 
 @dataclass
@@ -62,7 +63,9 @@ class VoiceSalesAssistantService:
         self.store = create_store()
         self.sessions = SessionStore(self.store)
         self.drift = DriftMonitor(self.nlu.training_intent_distribution)
+        self.reranker = PolicyReranker()
         self._start_archival_worker()
+        self._start_drift_reporter()
 
     def _start_archival_worker(self) -> None:
         def _loop() -> None:
@@ -72,6 +75,15 @@ class VoiceSalesAssistantService:
                 if archived:
                     self.logger.info("turns_archived", count=archived, retention_days=settings.retention_days)
                 time.sleep(settings.archive_interval_seconds)
+
+        Thread(target=_loop, daemon=True).start()
+
+    def _start_drift_reporter(self) -> None:
+        def _loop() -> None:
+            while True:
+                drift = self.drift.persist_weekly_snapshot(settings.drift_report_path)
+                self.logger.info("drift_snapshot_persisted", drift_max=round(drift.get("drift_max", 0.0), 4))
+                time.sleep(settings.drift_report_interval_seconds)
 
         Thread(target=_loop, daemon=True).start()
 
@@ -126,9 +138,10 @@ class VoiceSalesAssistantService:
                 return "I can share verified plan details only. Let me provide accurate terms and pricing."
         return text
 
-    def decide_response(self, state: SessionState, text: str, intent: Intent, confidence: float) -> Decision:
+    def decide_response(self, state: SessionState, text: str, intent: Intent, sentiment: Sentiment, confidence: float) -> Decision:
         faq_answer, faq_score = self.knowledge.best_faq_match(text)
         product, product_score = self.knowledge.best_product_match(text)
+        candidates: list[PolicyCandidate] = []
 
         if intent == Intent.escalation:
             return Decision("Understood. Transferring you to a human specialist now.", True)
@@ -137,33 +150,55 @@ class VoiceSalesAssistantService:
         disclaimer = flow["mandatory_disclaimer"]
 
         if intent == Intent.faq and faq_answer and faq_score >= settings.confidence_threshold:
-            return Decision(f"{faq_answer} Is there anything else I can help with?", False)
+            candidates.append(PolicyCandidate(text=f"{faq_answer} Is there anything else I can help with?"))
 
         if intent == Intent.sales and product and product_score >= settings.confidence_threshold:
             if product.name.lower() not in flow["allowed_products"]:
-                return Decision("I can connect you to a specialist for this offer based on your campaign eligibility.", True)
-            return Decision(
-                f"{product.name} is {product.price}. {product.pitch} {disclaimer} Would you like me to place the order now?",
-                False,
-            )
+                candidates.append(
+                    PolicyCandidate(
+                        text="I can connect you to a specialist for this offer based on your campaign eligibility.",
+                        escalate=True,
+                    )
+                )
+            else:
+                candidates.append(
+                    PolicyCandidate(
+                        text=f"{product.name} is {product.price}. {product.pitch} {disclaimer} Would you like me to place the order now?"
+                    )
+                )
 
         if intent == Intent.support:
-            return Decision("I can help troubleshoot. Please share what is failing and when it started.", False)
+            candidates.append(PolicyCandidate(text="I can help troubleshoot. Please share what is failing and when it started."))
         if intent == Intent.refund:
-            return Decision("I can help with the refund. Please share your account number and transaction date.", False)
+            candidates.append(
+                PolicyCandidate(text="I can help with the refund. Please share your account number and transaction date.")
+            )
         if intent == Intent.upsell:
-            return Decision("Based on your plan, I can offer a higher-speed bundle with a loyalty discount.", False)
+            candidates.append(
+                PolicyCandidate(text="Based on your plan, I can offer a higher-speed bundle with a loyalty discount.")
+            )
+            candidates.append(
+                PolicyCandidate(text="I can compare your current plan and suggest an upgrade that reduces cost per GB.")
+            )
+        if intent == Intent.refund:
+            candidates.append(PolicyCandidate(text="For refund processing, please confirm account id and payment reference."))
 
         if confidence < settings.confidence_threshold:
-            return Decision(
-                "I want to give you the right answer. Is this about billing, support, or buying a new product?",
-                False,
+            candidates.append(
+                PolicyCandidate(text="I want to give you the right answer. Is this about billing, support, or buying a new product?")
             )
 
-        return Decision(
-            "I can help with product sales, billing, refunds, cancellations, and technical support.",
-            False,
+        candidates.append(
+            PolicyCandidate(text="I can help with product sales, billing, refunds, cancellations, and technical support.")
         )
+        picked = self.reranker.choose(
+            candidates=candidates,
+            intent=intent,
+            sentiment=sentiment,
+            confidence=confidence,
+            journey_state=state.journey_state,
+        )
+        return Decision(picked.text, picked.escalate)
 
     def handle_turn(self, session_id: UUID, request_id: str, text: str) -> AssistantTurnResponse:
         start = datetime.now(timezone.utc)
@@ -174,7 +209,7 @@ class VoiceSalesAssistantService:
         self._extract_context(state, text)
         nlu_result = self.nlu.analyze(text)
         confident = self.nlu.is_intent_confident(nlu_result.intent, nlu_result.confidence)
-        decision = self.decide_response(state, text, nlu_result.intent, nlu_result.confidence)
+        decision = self.decide_response(state, text, nlu_result.intent, nlu_result.sentiment, nlu_result.confidence)
 
         if nlu_result.sentiment.value == "negative":
             state.consecutive_negative_turns += 1

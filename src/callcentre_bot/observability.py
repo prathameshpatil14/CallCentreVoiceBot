@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import re
 import time
 from collections import Counter, defaultdict
@@ -83,3 +84,11 @@ class DriftMonitor:
         }
         drift["drift_max"] = max(drift.values()) if drift else 0.0
         return drift
+
+    def persist_weekly_snapshot(self, output_path: str) -> dict[str, float]:
+        payload = {"ts": time.time(), "drift": self.snapshot()}
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        return payload["drift"]

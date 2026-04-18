@@ -11,12 +11,14 @@ A contact-center sales/support assistant with **no third-party API/model depende
    - Offline evaluation script with precision/recall/F1/confusion matrix on held-out test split (`scripts/evaluate_models.py`).
    - Model version/variant support via `MODEL_VARIANT`.
    - Drift monitor comparing production intent distribution vs training baseline.
+   - Validation-set-based threshold calibration + persisted weekly drift reports.
 
 2. **Conversation quality**
    - Context memory in session state (`customer_name`, `account_id`, `account_type`, issues, campaign).
    - Explicit journey state machine (`sell`, `upsell`, `complaint`, `refund`).
    - Campaign-specific conversation flows + disclaimers.
    - Confidence-aware clarification prompts + deterministic transfer policy (clarification/retry caps).
+   - Lightweight policy reranker to choose best template/action from candidates.
    - Compliance guardrails for restricted phrases.
 
 3. **Persistence/reliability**
@@ -36,6 +38,7 @@ A contact-center sales/support assistant with **no third-party API/model depende
    - Expanded PII redaction (PAN/Aadhaar/account variants).
    - Optional TLS enforcement through reverse proxy (`REQUIRE_TLS=true`).
    - Metrics endpoint (`/metrics`) with request, latency, and drift counters.
+   - Supervisor drift report endpoint (`/v1/admin/drift-report`).
 
 ## API endpoints
 
@@ -82,3 +85,4 @@ python scripts/evaluate_models.py
 - `REQUIRE_TLS` (default `false`; set `true` behind reverse proxy)
 - `INTENT_THRESHOLD_SALES` / `INTENT_THRESHOLD_SUPPORT` / `INTENT_THRESHOLD_ESCALATION` / `INTENT_THRESHOLD_REFUND` / `INTENT_THRESHOLD_UPSELL`
 - `MAX_CLARIFICATIONS` / `MAX_RETRIES_BEFORE_TRANSFER`
+- `DRIFT_REPORT_PATH` / `DRIFT_REPORT_INTERVAL_SECONDS`

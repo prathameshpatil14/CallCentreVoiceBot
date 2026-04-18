@@ -35,6 +35,7 @@ class InHouseNLUEngine:
         self.sentiment_model = NaiveBayesTextClassifier()
         self.model_version = f"nlu-{settings.model_variant}-2026.04"
         self.training_intent_distribution: dict[str, float] = {}
+        self.calibrated_thresholds: dict[str, float] = {}
         self._train_models()
 
     def _normalize(self, text: str) -> str:
@@ -67,10 +68,37 @@ class InHouseNLUEngine:
 
     def _train_models(self) -> None:
         intent_train = self._load_split_examples("intent", "train")
+        intent_validation = self._load_split_examples("intent", "validation")
         sentiment_train = self._load_split_examples("sentiment", "train")
         self.intent_model.train(intent_train)
         self.sentiment_model.train(sentiment_train)
         self.training_intent_distribution = self._distribution([label for label, _ in intent_train])
+        self.calibrated_thresholds = self._calibrate_intent_thresholds(intent_validation)
+
+    def _calibrate_intent_thresholds(self, validation: list[tuple[str, str]]) -> dict[str, float]:
+        if not validation:
+            return {}
+        by_intent: dict[str, list[tuple[str, float]]] = {}
+        for expected_label, text in validation:
+            predicted_label, confidence = self.intent_model.predict(text)
+            by_intent.setdefault(expected_label, []).append((predicted_label, confidence))
+
+        thresholds: dict[str, float] = {}
+        for intent_label, rows in by_intent.items():
+            best_threshold = 0.5
+            best_f1 = -1.0
+            for threshold in [x / 100 for x in range(35, 86, 5)]:
+                tp = sum(1 for predicted, conf in rows if predicted == intent_label and conf >= threshold)
+                fp = sum(1 for predicted, conf in rows if predicted != intent_label and conf >= threshold)
+                fn = sum(1 for predicted, conf in rows if predicted == intent_label and conf < threshold)
+                precision = tp / max(1, tp + fp)
+                recall = tp / max(1, tp + fn)
+                f1 = (2 * precision * recall) / max(1e-9, precision + recall)
+                if f1 > best_f1:
+                    best_f1 = f1
+                    best_threshold = threshold
+            thresholds[intent_label] = best_threshold
+        return thresholds
 
     def _distribution(self, labels: list[str]) -> dict[str, float]:
         total = len(labels) or 1
@@ -85,6 +113,9 @@ class InHouseNLUEngine:
             Intent.refund: settings.intent_threshold_refund,
             Intent.upsell: settings.intent_threshold_upsell,
         }
+        calibrated = self.calibrated_thresholds.get(intent.value)
+        if calibrated is not None:
+            return calibrated
         return thresholds.get(intent, settings.confidence_threshold)
 
     def is_intent_confident(self, intent: Intent, confidence: float) -> bool:

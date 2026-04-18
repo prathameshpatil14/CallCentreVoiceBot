@@ -1,6 +1,7 @@
 import json
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -61,6 +62,14 @@ class BotRequestHandler(BaseHTTPRequestHandler):
                 return
             payload = self.service.metrics.snapshot() | self.service.drift.snapshot()
             self._send_json(HTTPStatus.OK, payload | {"request_id": request_id})
+            return
+
+        if path == "/v1/admin/drift-report":
+            if not self._has_role("supervisor"):
+                self._send_json(HTTPStatus.FORBIDDEN, {"error": "insufficient role", "request_id": request_id})
+                return
+            report = self._load_latest_drift_report()
+            self._send_json(HTTPStatus.OK, report | {"request_id": request_id})
             return
 
         if not self._authorized():
@@ -159,6 +168,19 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _load_latest_drift_report(self) -> dict[str, Any]:
+        path = Path(settings.drift_report_path)
+        if not path.exists():
+            return {"status": "no drift reports yet"}
+        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        if not lines:
+            return {"status": "no drift reports yet"}
+        try:
+            payload = json.loads(lines[-1])
+        except json.JSONDecodeError:
+            return {"status": "drift report unreadable"}
+        return {"status": "ok", "latest": payload}
 
     def log_message(self, format: str, *args: object) -> None:
         return
