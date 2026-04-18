@@ -1,7 +1,7 @@
 import json
 import re
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from threading import Lock
 
@@ -10,6 +10,9 @@ PII_PATTERNS = [
     re.compile(r"\b\d{10}\b"),
     re.compile(r"\b[\w.%-]+@[\w.-]+\.[A-Za-z]{2,}\b"),
     re.compile(r"\b(?:acc|account)\s*[:#-]?\s*\d{4,}\b", re.IGNORECASE),
+    re.compile(r"\b[a-z]{5}\d{4}[a-z]\b", re.IGNORECASE),  # PAN
+    re.compile(r"\b\d{4}\s?\d{4}\s?\d{4}\b"),  # Aadhaar
+    re.compile(r"\b(?:कार्ड|खाता|account|acct|iban|ifsc)\s*[:#-]?\s*[A-Za-z0-9-]{4,}\b", re.IGNORECASE),
 ]
 
 
@@ -24,6 +27,11 @@ class StructuredLogger:
     def info(self, event: str, **kwargs: object) -> None:
         payload = {"event": event, "ts": time.time(), **kwargs}
         print(json.dumps(payload, ensure_ascii=False))
+
+
+class AuditLogger(StructuredLogger):
+    def audit(self, action: str, **kwargs: object) -> None:
+        self.info("audit", action=action, **kwargs)
 
 
 @dataclass
@@ -52,3 +60,26 @@ class MetricStore:
                 count = self.counters.get(f"{name}_count", 1)
                 data[f"{name}_avg_ms"] = total / max(1, count)
             return data
+
+
+class DriftMonitor:
+    def __init__(self, baseline_distribution: dict[str, float]) -> None:
+        self.baseline = baseline_distribution
+        self.production_counts: Counter[str] = Counter()
+        self._lock = Lock()
+
+    def record(self, intent_label: str) -> None:
+        with self._lock:
+            self.production_counts[intent_label] += 1
+
+    def snapshot(self) -> dict[str, float]:
+        with self._lock:
+            total = sum(self.production_counts.values()) or 1
+            current = {label: count / total for label, count in self.production_counts.items()}
+        labels = set(self.baseline) | set(current)
+        drift = {
+            f"drift_{label}": abs(self.baseline.get(label, 0.0) - current.get(label, 0.0))
+            for label in labels
+        }
+        drift["drift_max"] = max(drift.values()) if drift else 0.0
+        return drift
