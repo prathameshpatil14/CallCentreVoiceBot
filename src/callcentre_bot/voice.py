@@ -7,14 +7,20 @@ class AudioChunk:
 
 
 class ASRAdapter:
-    """Replace with real speech-to-text provider in production."""
-
-    def transcribe(self, _: AudioChunk) -> str:
+    def transcribe(self, audio: AudioChunk) -> str:
         raise NotImplementedError
 
 
 class TTSAdapter:
-    """Replace with real text-to-speech provider in production."""
-
-    def synthesize(self, _: str) -> AudioChunk:
+    def synthesize(self, text: str) -> AudioChunk:
         raise NotImplementedError
+
+
+class NullASRAdapter(ASRAdapter):
+    def transcribe(self, audio: AudioChunk) -> str:
+        raise RuntimeError("No ASR provider configured")
+
+
+class NullTTSAdapter(TTSAdapter):
+    def synthesize(self, text: str) -> AudioChunk:
+        raise RuntimeError("No TTS provider configured")

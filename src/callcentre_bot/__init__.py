@@ -1,3 +1,3 @@
-from .assistant import VoiceSalesAssistant
+from .main import run_server
 
-__all__ = ["VoiceSalesAssistant"]
+__all__ = ["run_server"]

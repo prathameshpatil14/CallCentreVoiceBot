@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from difflib import SequenceMatcher
 
 
 @dataclass(frozen=True)
@@ -32,20 +32,44 @@ FAQ = {
     "refund": "Refunds are usually processed in 5-7 business days after approval.",
     "cancel": "You can cancel by verified phone request or from your account portal.",
     "support": "Technical support is available 24/7 on this line.",
+    "upgrade": "I can compare your current plan and recommend an upgrade option now.",
 }
 
 
-def find_product(query: str) -> Optional[Product]:
-    query_lower = query.lower()
-    for key, product in PRODUCTS.items():
-        if key in query_lower:
-            return product
-    return None
+class KnowledgeRepository:
+    @staticmethod
+    def _match_score(text: str, key: str) -> float:
+        base = SequenceMatcher(None, text, key).ratio()
+        if key in text:
+            return max(base, 0.95)
+        return base
 
+    def best_product_match(self, text: str) -> tuple[Product | None, float]:
+        text_lower = text.lower().strip()
+        best_name = ""
+        best_score = 0.0
 
-def find_faq_answer(query: str) -> Optional[str]:
-    query_lower = query.lower()
-    for key, answer in FAQ.items():
-        if key in query_lower:
-            return answer
-    return None
+        for name in PRODUCTS:
+            score = self._match_score(text_lower, name)
+            if score > best_score:
+                best_name = name
+                best_score = score
+
+        if not best_name:
+            return None, 0.0
+        return PRODUCTS[best_name], best_score
+
+    def best_faq_match(self, text: str) -> tuple[str | None, float]:
+        text_lower = text.lower().strip()
+        best_key = ""
+        best_score = 0.0
+
+        for key in FAQ:
+            score = self._match_score(text_lower, key)
+            if score > best_score:
+                best_key = key
+                best_score = score
+
+        if not best_key:
+            return None, 0.0
+        return FAQ[best_key], best_score

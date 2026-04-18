@@ -1,61 +1,51 @@
-# CallCentreVoiceBot (Python Starter)
+# CallCentreVoiceBot - Standard-Library Production Service
 
-This repository contains a practical starter implementation for a **voice contact-center chatbot**.
+This codebase provides a production-oriented contact-center assistant backend with **in-house text models** and **no third-party APIs/models**.
 
-## What this bot can do
+## What changed
 
-- Handle basic customer conversations in text or voice pipelines.
-- Detect customer sentiment (`positive`, `neutral`, `negative`) and adapt tone.
-- Answer FAQs from a local knowledge base.
-- Run a guided sales flow for products.
-- Escalate difficult/unclear cases to a human agent.
+- Removed framework/model dependencies (no FastAPI, no external LLM API, no third-party ML).
+- Added custom Naive Bayes classifiers implemented from scratch for:
+  - intent classification,
+  - sentiment classification.
+- Added a standard-library HTTP server with JSON endpoints.
+- Kept thread-safe session management, escalation controls, and deterministic product/FAQ handling.
 
-> Important: no AI system has true human thinking or emotions. This starter aims for **human-like conversational behavior**, not consciousness.
+## API endpoints
 
----
+- `GET /health`
+- `POST /v1/sessions`
+- `GET /v1/sessions/{session_id}`
+- `POST /v1/sessions/{session_id}/turns`
 
-## Architecture
-
-The `VoiceSalesAssistant` combines modular components:
-
-1. **ASR (speech-to-text)**: convert caller audio to text.
-2. **Intent + sentiment**: classify user goal and emotional tone.
-3. **Knowledge + product retrieval**: fetch FAQ answers and product details.
-4. **Dialog policy**: decide whether to answer, sell, clarify, or escalate.
-5. **TTS (text-to-speech)**: return voice response.
-
-In this starter, ASR/TTS are pluggable stubs and text-mode simulation is fully runnable.
-
----
-
-## Quick start
+## Run
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-python run_demo.py
+python -m callcentre_bot.main
 ```
 
-Then type customer messages in terminal. Type `exit` to stop.
+Server defaults to `0.0.0.0:8080`.
 
----
+## Example
 
-## Files
+```bash
+curl -X POST http://localhost:8080/v1/sessions
+curl -X POST http://localhost:8080/v1/sessions/<SESSION_ID>/turns \
+  -H "Content-Type: application/json" \
+  -d '{"text":"I want to buy a family mobile plan"}'
+```
 
-- `src/callcentre_bot/assistant.py` - orchestration logic.
-- `src/callcentre_bot/dialog.py` - intent handling + response strategy.
-- `src/callcentre_bot/knowledge.py` - FAQ + product catalog lookup.
-- `src/callcentre_bot/sentiment.py` - simple sentiment detector.
-- `src/callcentre_bot/voice.py` - ASR/TTS adapter interfaces.
-- `run_demo.py` - CLI demo.
+## Environment variables
 
----
+- `BOT_NAME` (default: `Ava`)
+- `CONFIDENCE_THRESHOLD` (default: `0.62`)
+- `NEGATIVE_SENTIMENT_ESCALATION_TURNS` (default: `3`)
+- `SERVER_HOST` (default: `0.0.0.0`)
+- `SERVER_PORT` (default: `8080`)
 
-## Next production upgrades
+## Notes
 
-1. Replace rule-based sentiment/intent with LLM + classifier.
-2. Add multilingual support (e.g., English/Hindi).
-3. Add CRM integration and order creation APIs.
-4. Add call recording, compliance scripts, and audit logging.
-5. Add confidence thresholds and forced human handoff for risk cases.
+- This version uses human-like responses, but does not claim true human consciousness/emotions.
+- To improve accuracy further, expand local training data in `src/callcentre_bot/nlu.py` and knowledge in `src/callcentre_bot/knowledge.py`.
