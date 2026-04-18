@@ -1,0 +1,2 @@
+# No third-party runtime dependencies.
+# This service uses Python standard library only.
