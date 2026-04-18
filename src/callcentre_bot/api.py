@@ -19,9 +19,24 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         return self.headers.get("X-Request-ID", str(uuid4()))
 
     def _authorized(self) -> bool:
-        if not settings.api_key:
+        keys = set(settings.valid_api_keys)
+        if settings.api_key:
+            keys.add(settings.api_key)
+        if not keys:
             return True
-        return self.headers.get("X-API-Key", "") == settings.api_key
+        return self.headers.get("X-API-Key", "") in keys
+
+    def _role(self) -> str:
+        return self.headers.get("X-Role", "agent").strip().lower()
+
+    def _has_role(self, required: str) -> bool:
+        rank = {"agent": 1, "supervisor": 2, "admin": 3}
+        return rank.get(self._role(), 0) >= rank.get(required, 1)
+
+    def _tls_ok(self) -> bool:
+        if not settings.require_tls:
+            return True
+        return self.headers.get("X-Forwarded-Proto", "").lower() == "https"
 
     def _rate_limited(self) -> bool:
         client = self.client_address[0]
@@ -32,12 +47,20 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if not self._tls_ok():
+            self._send_json(HTTPStatus.UPGRADE_REQUIRED, {"error": "tls required", "request_id": request_id})
+            return
+
         if path in {"/health", "/health/live", "/health/ready"}:
             self._send_json(HTTPStatus.OK, {"status": "ok", "request_id": request_id})
             return
 
         if path == "/metrics":
-            self._send_json(HTTPStatus.OK, self.service.metrics.snapshot() | {"request_id": request_id})
+            if not self._has_role(settings.role_required_for_metrics):
+                self._send_json(HTTPStatus.FORBIDDEN, {"error": "insufficient role", "request_id": request_id})
+                return
+            payload = self.service.metrics.snapshot() | self.service.drift.snapshot()
+            self._send_json(HTTPStatus.OK, payload | {"request_id": request_id})
             return
 
         if not self._authorized():
@@ -66,6 +89,9 @@ class BotRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         request_id = self._request_id()
+        if not self._tls_ok():
+            self._send_json(HTTPStatus.UPGRADE_REQUIRED, {"error": "tls required", "request_id": request_id})
+            return
 
         if self._rate_limited():
             self._send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "rate limit exceeded", "request_id": request_id})

@@ -8,6 +8,20 @@ class AudioChunk:
     sample_rate_hz: int = 16000
 
 
+@dataclass(frozen=True)
+class StageSLO:
+    stage: str
+    max_latency_ms: int
+
+
+VOICE_PIPELINE_SLOS = [
+    StageSLO("asr", 350),
+    StageSLO("nlu", 80),
+    StageSLO("policy", 60),
+    StageSLO("tts", 400),
+]
+
+
 class VoiceActivityDetector:
     def is_speech(self, audio: AudioChunk, threshold: int = 400) -> bool:
         if not audio.pcm16_bytes:
@@ -53,3 +67,21 @@ class OfflineTTSAdapter(TTSAdapter):
             value = int(1200 * math.sin(2 * math.pi * frequency * (i / sample_rate)))
             pcm += int(value).to_bytes(2, "little", signed=True)
         return AudioChunk(bytes(pcm), sample_rate_hz=sample_rate)
+
+
+class DomainLanguageModel:
+    """Placeholder for contact-center-specific LM adaptation."""
+
+    def score(self, text: str) -> float:
+        return min(1.0, max(0.0, len(text.split()) / 20))
+
+
+class ProsodyController:
+    """Placeholder for controllable support/sales speaking styles."""
+
+    def style_for_intent(self, intent: str) -> str:
+        if intent in {"sales", "upsell"}:
+            return "energetic_warm"
+        if intent in {"support", "refund"}:
+            return "calm_empathic"
+        return "neutral"

@@ -14,6 +14,20 @@ class Settings:
     max_request_bytes: int
     rate_limit_per_minute: int
     model_variant: str
+    intent_threshold_sales: float
+    intent_threshold_support: float
+    intent_threshold_escalation: float
+    intent_threshold_refund: float
+    intent_threshold_upsell: float
+    db_backend: str
+    postgres_dsn: str
+    retention_days: int
+    archive_interval_seconds: int
+    require_tls: bool
+    valid_api_keys: tuple[str, ...]
+    role_required_for_metrics: str
+    max_clarifications: int
+    max_retries_before_transfer: int
 
 
 def _float_env(name: str, default: float) -> float:
@@ -49,4 +63,18 @@ settings = Settings(
     max_request_bytes=_int_env("MAX_REQUEST_BYTES", 32768, 1024, 1024 * 1024),
     rate_limit_per_minute=_int_env("RATE_LIMIT_PER_MINUTE", 120, 1, 10000),
     model_variant=os.getenv("MODEL_VARIANT", "A").upper(),
+    intent_threshold_sales=_float_env("INTENT_THRESHOLD_SALES", 0.62),
+    intent_threshold_support=_float_env("INTENT_THRESHOLD_SUPPORT", 0.58),
+    intent_threshold_escalation=_float_env("INTENT_THRESHOLD_ESCALATION", 0.50),
+    intent_threshold_refund=_float_env("INTENT_THRESHOLD_REFUND", 0.60),
+    intent_threshold_upsell=_float_env("INTENT_THRESHOLD_UPSELL", 0.62),
+    db_backend=os.getenv("DB_BACKEND", "sqlite").strip().lower(),
+    postgres_dsn=os.getenv("POSTGRES_DSN", "").strip(),
+    retention_days=_int_env("RETENTION_DAYS", 30, 1, 3650),
+    archive_interval_seconds=_int_env("ARCHIVE_INTERVAL_SECONDS", 3600, 60, 86400),
+    require_tls=os.getenv("REQUIRE_TLS", "false").strip().lower() in {"1", "true", "yes"},
+    valid_api_keys=tuple(part.strip() for part in os.getenv("API_KEYS", "").split(",") if part.strip()),
+    role_required_for_metrics=os.getenv("ROLE_REQUIRED_FOR_METRICS", "agent").strip().lower(),
+    max_clarifications=_int_env("MAX_CLARIFICATIONS", 2, 1, 10),
+    max_retries_before_transfer=_int_env("MAX_RETRIES_BEFORE_TRANSFER", 2, 1, 10),
 )

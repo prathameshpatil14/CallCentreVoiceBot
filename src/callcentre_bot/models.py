@@ -16,7 +16,27 @@ class Intent(str, Enum):
     faq = "faq"
     support = "support"
     escalation = "escalation"
+    refund = "refund"
+    upsell = "upsell"
     unknown = "unknown"
+
+
+class Journey(str, Enum):
+    sell = "sell"
+    upsell = "upsell"
+    complaint = "complaint"
+    refund = "refund"
+    general = "general"
+
+
+class JourneyStateName(str, Enum):
+    start = "start"
+    clarify = "clarify"
+    verify_account = "verify_account"
+    resolve = "resolve"
+    offer_upsell = "offer_upsell"
+    transfer = "transfer"
+    closed = "closed"
 
 
 @dataclass
@@ -71,6 +91,12 @@ class SessionState:
     account_type: str = ""
     unresolved_issues: list[str] = field(default_factory=list)
     campaign: str = "default"
+    journey: Journey = Journey.general
+    journey_state: JourneyStateName = JourneyStateName.start
+    clarification_count: int = 0
+    retry_count: int = 0
+    account_id: str = ""
+    issue_summary: str = ""
     updated_at_utc: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict[str, Any]:
@@ -85,6 +111,12 @@ class SessionState:
             "account_type": self.account_type,
             "unresolved_issues": self.unresolved_issues,
             "campaign": self.campaign,
+            "journey": self.journey.value,
+            "journey_state": self.journey_state.value,
+            "clarification_count": self.clarification_count,
+            "retry_count": self.retry_count,
+            "account_id": self.account_id,
+            "issue_summary": self.issue_summary,
             "updated_at_utc": self.updated_at_utc.isoformat(),
         }
 
@@ -101,5 +133,11 @@ class SessionState:
             account_type=str(row["account_type"] or ""),
             unresolved_issues=(str(row["unresolved_issues"] or "").split("|") if row["unresolved_issues"] else []),
             campaign=str(row["campaign"] or "default"),
+            journey=Journey(str(row["journey"] or "general")),
+            journey_state=JourneyStateName(str(row["journey_state"] or "start")),
+            clarification_count=int(row["clarification_count"] or 0),
+            retry_count=int(row["retry_count"] or 0),
+            account_id=str(row["account_id"] or ""),
+            issue_summary=str(row["issue_summary"] or ""),
             updated_at_utc=datetime.fromisoformat(str(row["updated_at_utc"])),
         )

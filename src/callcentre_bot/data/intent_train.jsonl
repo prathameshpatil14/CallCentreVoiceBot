@@ -1,0 +1,22 @@
+{"label":"sales","text":"I want to buy a new broadband connection"}
+{"label":"sales","text":"Show me the best family mobile offer"}
+{"label":"sales","text":"Need pricing details for smart home security"}
+{"label":"sales","text":"Mujhe new plan lena hai"}
+{"label":"sales","text":"Can you help me purchase today"}
+{"label":"faq","text":"How can I check my billing statement"}
+{"label":"faq","text":"What is cancellation process"}
+{"label":"faq","text":"Mera bill kaise dekhu"}
+{"label":"faq","text":"How to upgrade my plan"}
+{"label":"support","text":"My internet is not working"}
+{"label":"support","text":"Service keeps dropping since morning"}
+{"label":"support","text":"There is a network issue in my area"}
+{"label":"support","text":"Please troubleshoot my device"}
+{"label":"escalation","text":"Connect me to a human agent"}
+{"label":"escalation","text":"I need your manager right now"}
+{"label":"escalation","text":"Escalate this call immediately"}
+{"label":"refund","text":"I need refund for duplicate payment"}
+{"label":"refund","text":"Refund my last transaction"}
+{"label":"upsell","text":"Suggest premium upgrade on my current plan"}
+{"label":"upsell","text":"Any better package with faster speed"}
+{"label":"unknown","text":"hello"}
+{"label":"unknown","text":"thanks"}
