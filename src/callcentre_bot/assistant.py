@@ -60,7 +60,10 @@ class VoiceSalesAssistantService:
     def _extract_context(self, state: SessionState, text: str) -> None:
         lower = text.lower()
         if "my name is" in lower:
-            state.customer_name = text.split("my name is", 1)[-1].strip().split()[0].title()
+            name_fragment = text.split("my name is", 1)[-1].strip()
+            name_tokens = name_fragment.split()
+            if name_tokens:
+                state.customer_name = name_tokens[0].title()
         if "prepaid" in lower:
             state.account_type = "prepaid"
         if "postpaid" in lower:
