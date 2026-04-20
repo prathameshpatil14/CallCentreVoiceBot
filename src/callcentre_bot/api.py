@@ -73,7 +73,15 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def _read_json_body(self) -> dict[str, Any] | None:
-        content_length = int(self.headers.get("Content-Length", "0"))
+        raw_content_length = self.headers.get("Content-Length", "0")
+        try:
+            content_length = int(raw_content_length)
+        except (TypeError, ValueError):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid content-length"})
+            return None
+        if content_length < 0:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid content-length"})
+            return None
         raw = self.rfile.read(content_length) if content_length > 0 else b"{}"
         try:
             payload = json.loads(raw.decode("utf-8"))

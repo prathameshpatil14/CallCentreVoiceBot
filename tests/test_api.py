@@ -1,4 +1,5 @@
 import json
+import http.client
 import threading
 import time
 import unittest
@@ -68,6 +69,25 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(first["escalate_to_human"])
         self.assertFalse(second["escalate_to_human"])
         self.assertTrue(third["escalate_to_human"])
+
+    def test_invalid_content_length_returns_bad_request(self) -> None:
+        create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")
+        with request.urlopen(create_req) as create_resp:
+            session_id = json.loads(create_resp.read().decode("utf-8"))["session_id"]
+
+        conn = http.client.HTTPConnection("127.0.0.1", 18080)
+        conn.request(
+            "POST",
+            f"/v1/sessions/{session_id}/turns",
+            body="{}",
+            headers={"Content-Type": "application/json", "Content-Length": "abc"},
+        )
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        conn.close()
+
+        self.assertEqual(response.status, 400)
+        self.assertEqual(body["error"], "invalid content-length")
 
 
 if __name__ == "__main__":
