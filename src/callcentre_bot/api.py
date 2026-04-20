@@ -44,6 +44,13 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         return not self.limiter.allow(client)
 
     def do_GET(self) -> None:  # noqa: N802
+        try:
+            self._do_get_impl()
+        except Exception:
+            request_id = self._request_id()
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal server error", "request_id": request_id})
+
+    def _do_get_impl(self) -> None:
         request_id = self._request_id()
         parsed = urlparse(self.path)
         path = parsed.path
@@ -97,6 +104,13 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found", "request_id": request_id})
 
     def do_POST(self) -> None:  # noqa: N802
+        try:
+            self._do_post_impl()
+        except Exception:
+            request_id = self._request_id()
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal server error", "request_id": request_id})
+
+    def _do_post_impl(self) -> None:
         request_id = self._request_id()
         if not self._tls_ok():
             self._send_json(HTTPStatus.UPGRADE_REQUIRED, {"error": "tls required", "request_id": request_id})
@@ -145,7 +159,11 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found", "request_id": request_id})
 
     def _read_json_body(self, request_id: str) -> dict[str, Any] | None:
-        content_length = int(self.headers.get("Content-Length", "0"))
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid content-length", "request_id": request_id})
+            return None
         if content_length > settings.max_request_bytes:
             self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "payload too large", "request_id": request_id})
             return None

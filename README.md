@@ -65,6 +65,13 @@ python -m callcentre_bot.main
 python scripts/evaluate_models.py
 ```
 
+## Production verification utilities
+
+```bash
+PYTHONPATH=src python scripts/load_test.py --base-url http://127.0.0.1:8080 --users 20 --turns 10
+PYTHONPATH=src python scripts/quality_review.py
+```
+
 ## Environment variables
 
 - `BOT_NAME` (default `Ava`)
