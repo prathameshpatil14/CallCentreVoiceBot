@@ -111,6 +111,33 @@ class ApiTests(unittest.TestCase):
         self.assertIn("text", reply)
         self.assertIn("request_id", reply)
 
+    def test_human_like_consciousness_personalizes_response(self) -> None:
+        create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")
+        with request.urlopen(create_req) as create_resp:
+            session_id = json.loads(create_resp.read().decode("utf-8"))["session_id"]
+
+        intro_payload = json.dumps({"text": "my name is rita"}).encode("utf-8")
+        intro_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/turns",
+            data=intro_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(intro_req) as intro_resp:
+            self.assertEqual(intro_resp.status, 200)
+
+        follow_payload = json.dumps({"text": "I need help with billing support"}).encode("utf-8")
+        follow_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/turns",
+            data=follow_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(follow_req) as follow_resp:
+            reply = json.loads(follow_resp.read().decode("utf-8"))
+
+        self.assertIn("Rita", reply["text"])
+
 
 if __name__ == "__main__":
     unittest.main()
