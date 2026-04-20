@@ -8,6 +8,7 @@ Use this as a practical verification sheet for production review.
 - [x] NLU normalization for spelling/Hinglish variants.
 - [x] Per-intent confidence thresholds and confidence-aware clarifications.
 - [x] Policy reranking for selecting best response/action.
+- [x] Brain-like orchestration layer (planner + memory + reflection + safety governor).
 - [x] Journey state machine (`sell`, `upsell`, `complaint`, `refund`, `general`).
 - [x] Campaign-aware flow constraints and mandatory disclaimers.
 - [x] Compliance guardrails for restricted claims/phrases.
@@ -29,9 +30,10 @@ Use this as a practical verification sheet for production review.
 
 ## Voice layer checklist
 
-- [x] Offline ASR/TTS placeholders.
+- [x] Production voice adapter framework (local Whisper/Piper) with fail-safe fallback mode.
 - [x] Basic voice activity detection helper.
-- [ ] Production-grade speech stack (advanced ASR/TTS quality and latency tuning) pending.
+- [x] Voice I/O endpoint with production-safe fallbacks (`/voice-turns`, no-speech/ASR/TTS fallback handling).
+- [ ] Final ASR/TTS model tuning and benchmarking for target call-center accents/latency SLAs pending.
 
 ## Security checklist
 

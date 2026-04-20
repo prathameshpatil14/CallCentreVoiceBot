@@ -19,6 +19,7 @@ A contact-center sales/support assistant with **no third-party API/model depende
    - Campaign-specific conversation flows + disclaimers.
    - Confidence-aware clarification prompts + deterministic transfer policy (clarification/retry caps).
    - Lightweight policy reranker to choose best template/action from candidates.
+   - Brain-like control stack: planner + memory manager + reflection loop + safety governor.
    - Compliance guardrails for restricted phrases.
    - Human-like consciousness layer (emotion mirroring + customer-name recall for personalized responses).
 
@@ -50,6 +51,7 @@ A contact-center sales/support assistant with **no third-party API/model depende
 - `POST /v1/sessions`
 - `GET /v1/sessions/{session_id}`
 - `POST /v1/sessions/{session_id}/turns`
+- `POST /v1/sessions/{session_id}/voice-turns` (audio in + synthesized audio out via base64)
 
 ## Run
 
@@ -84,6 +86,24 @@ PYTHONPATH=src python scripts/quality_review.py
 - `MAX_REQUEST_BYTES` (default `32768`)
 - `RATE_LIMIT_PER_MINUTE` (default `120`)
 - `MODEL_VARIANT` (default `A`; supports simple A/B behavior)
+- `VOICE_ENGINE_MODE` (`auto` / `production` / `fallback`, default `auto`)
+- `WHISPER_COMMAND` (default `whisper-cli`)
+- `PIPER_COMMAND` (default `piper`)
+- `PIPER_MODEL_PATH` (required for production TTS mode)
+- `VOICE_FALLBACK_ENABLED` (default `true`; set `false` to fail fast if production voice engine is unavailable)
+
+## Production voice engine setup
+
+For real voice quality, install local engines on your machine and run in production mode:
+
+```bash
+export VOICE_ENGINE_MODE=production
+export WHISPER_COMMAND=whisper-cli
+export PIPER_COMMAND=piper
+export PIPER_MODEL_PATH=/absolute/path/to/piper-model.onnx
+export VOICE_FALLBACK_ENABLED=false
+python -m callcentre_bot.main
+```
 
 
 ## What these two APIs do

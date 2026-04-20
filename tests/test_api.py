@@ -1,4 +1,5 @@
 import json
+import base64
 import threading
 import time
 import unittest
@@ -137,6 +138,44 @@ class ApiTests(unittest.TestCase):
             reply = json.loads(follow_resp.read().decode("utf-8"))
 
         self.assertIn("Rita", reply["text"])
+
+    def test_voice_turn_endpoint_returns_audio_and_transcript(self) -> None:
+        create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")
+        with request.urlopen(create_req) as create_resp:
+            session_id = json.loads(create_resp.read().decode("utf-8"))["session_id"]
+
+        fake_audio = base64.b64encode(b"I need billing support").decode("ascii")
+        body = json.dumps({"audio_base64": fake_audio, "sample_rate_hz": 16000}).encode("utf-8")
+        voice_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/voice-turns",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with request.urlopen(voice_req) as voice_resp:
+            payload = json.loads(voice_resp.read().decode("utf-8"))
+
+        self.assertEqual(voice_resp.status, 200)
+        self.assertIn("transcript", payload)
+        self.assertIn("audio_base64", payload)
+        self.assertTrue(len(payload["audio_base64"]) > 0)
+
+    def test_voice_turn_rejects_invalid_audio(self) -> None:
+        create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")
+        with request.urlopen(create_req) as create_resp:
+            session_id = json.loads(create_resp.read().decode("utf-8"))["session_id"]
+
+        body = json.dumps({"audio_base64": "not-valid-base64"}).encode("utf-8")
+        voice_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/voice-turns",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with self.assertRaises(HTTPError) as raised:
+            request.urlopen(voice_req)
+        self.assertEqual(raised.exception.code, 400)
 
 
 if __name__ == "__main__":

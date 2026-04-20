@@ -1,4 +1,5 @@
 import json
+import base64
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -153,6 +154,48 @@ class BotRequestHandler(BaseHTTPRequestHandler):
                 return
 
             reply = self.service.handle_turn(session_id=parsed_id, request_id=request_id, text=request_payload.text)
+            self._send_json(HTTPStatus.OK, reply.to_dict())
+            return
+
+        if path.startswith("/v1/sessions/") and path.endswith("/voice-turns"):
+            session_id = path.removeprefix("/v1/sessions/").removesuffix("/voice-turns")
+            session_id = session_id.strip("/")
+            try:
+                parsed_id = UUID(session_id)
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid session id", "request_id": request_id})
+                return
+
+            payload = self._read_json_body(request_id)
+            if payload is None:
+                return
+
+            encoded_audio = str(payload.get("audio_base64", "")).strip()
+            if not encoded_audio:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "audio_base64 is required", "request_id": request_id})
+                return
+
+            try:
+                audio_bytes = base64.b64decode(encoded_audio, validate=True)
+            except Exception:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "audio_base64 is invalid", "request_id": request_id})
+                return
+
+            try:
+                sample_rate_hz = int(payload.get("sample_rate_hz", 16000))
+            except (TypeError, ValueError):
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "sample_rate_hz must be an integer", "request_id": request_id})
+                return
+            if sample_rate_hz < 8000 or sample_rate_hz > 48000:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "sample_rate_hz out of range", "request_id": request_id})
+                return
+
+            reply = self.service.handle_voice_turn(
+                session_id=parsed_id,
+                request_id=request_id,
+                audio_bytes=audio_bytes,
+                sample_rate_hz=sample_rate_hz,
+            )
             self._send_json(HTTPStatus.OK, reply.to_dict())
             return
 
