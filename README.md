@@ -34,6 +34,7 @@ In this starter, ASR/TTS are pluggable stubs and text-mode simulation is fully r
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+pip install -e .
 python run_demo.py
 ```
 
