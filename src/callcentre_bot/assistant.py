@@ -137,6 +137,30 @@ class VoiceSalesAssistantService:
                 return "I can share verified plan details only. Let me provide accurate terms and pricing."
         return text
 
+    def _apply_human_like_consciousness(
+        self,
+        state: SessionState,
+        response_text: str,
+        sentiment: Sentiment,
+        escalate: bool,
+    ) -> str:
+        customer_name = state.customer_name.strip()
+        name_prefix = f"{customer_name}, " if customer_name else ""
+
+        if escalate:
+            return f"{name_prefix}{response_text}".strip()
+
+        if sentiment == Sentiment.negative:
+            return f"{name_prefix}I can hear your frustration, and I want to help. {response_text}".strip()
+
+        if sentiment == Sentiment.positive:
+            return f"{name_prefix}Thanks for sharing that. {response_text}".strip()
+
+        if customer_name and state.turns > 0:
+            return f"{name_prefix}{response_text}".strip()
+
+        return response_text
+
     def decide_response(self, state: SessionState, text: str, intent: Intent, sentiment: Sentiment, confidence: float) -> Decision:
         faq_answer, faq_score = self.knowledge.best_faq_match(text)
         product, product_score = self.knowledge.best_product_match(text)
@@ -225,11 +249,15 @@ class VoiceSalesAssistantService:
         escalate = decision.escalate or force_escalation or policy_escalation
 
         response_text = decision.text
-        if nlu_result.sentiment.value == "negative" and not escalate:
-            response_text = f"I am sorry for the frustration. {response_text}"
         if force_escalation:
             response_text = "I can hear your frustration. I am connecting you with a human agent right now."
 
+        response_text = self._apply_human_like_consciousness(
+            state=state,
+            response_text=response_text,
+            sentiment=nlu_result.sentiment,
+            escalate=escalate,
+        )
         response_text = self._enforce_compliance(response_text)
 
         state.turns += 1

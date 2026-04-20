@@ -20,6 +20,7 @@ A contact-center sales/support assistant with **no third-party API/model depende
    - Confidence-aware clarification prompts + deterministic transfer policy (clarification/retry caps).
    - Lightweight policy reranker to choose best template/action from candidates.
    - Compliance guardrails for restricted phrases.
+   - Human-like consciousness layer (emotion mirroring + customer-name recall for personalized responses).
 
 3. **Persistence/reliability**
    - Durable SQLite-backed sessions + turn history with optional PostgreSQL backend.
