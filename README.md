@@ -20,6 +20,7 @@ A contact-center sales/support assistant with **no third-party API/model depende
    - Confidence-aware clarification prompts + deterministic transfer policy (clarification/retry caps).
    - Lightweight policy reranker to choose best template/action from candidates.
    - Compliance guardrails for restricted phrases.
+   - Human-like consciousness layer (emotion mirroring + customer-name recall for personalized responses).
 
 3. **Persistence/reliability**
    - Durable SQLite-backed sessions + turn history with optional PostgreSQL backend.
@@ -62,6 +63,13 @@ python -m callcentre_bot.main
 
 ```bash
 python scripts/evaluate_models.py
+```
+
+## Production verification utilities
+
+```bash
+PYTHONPATH=src python scripts/load_test.py --base-url http://127.0.0.1:8080 --users 20 --turns 10
+PYTHONPATH=src python scripts/quality_review.py
 ```
 
 ## Environment variables
