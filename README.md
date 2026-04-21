@@ -72,6 +72,7 @@ python scripts/evaluate_models.py
 ```bash
 PYTHONPATH=src python scripts/load_test.py --base-url http://127.0.0.1:8080 --users 20 --turns 10
 PYTHONPATH=src python scripts/quality_review.py
+PYTHONPATH=src python scripts/run_voice_console.py --base-url http://127.0.0.1:8080
 ```
 
 ## Environment variables
