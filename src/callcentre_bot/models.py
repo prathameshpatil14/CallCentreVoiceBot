@@ -80,6 +80,31 @@ class AssistantTurnResponse:
 
 
 @dataclass
+class VoiceTurnResponse:
+    text: str
+    transcript: str
+    audio_base64: str
+    sample_rate_hz: int
+    intent: Intent
+    sentiment: Sentiment
+    confidence: float
+    escalate_to_human: bool
+    session_id: UUID
+    request_id: str
+    fallback_used: bool = False
+    fallback_reason: str = ""
+    timestamp_utc: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["intent"] = self.intent.value
+        data["sentiment"] = self.sentiment.value
+        data["session_id"] = str(self.session_id)
+        data["timestamp_utc"] = self.timestamp_utc.isoformat()
+        return data
+
+
+@dataclass
 class SessionState:
     session_id: UUID
     turns: int = 0
