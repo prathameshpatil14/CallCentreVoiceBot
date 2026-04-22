@@ -96,6 +96,35 @@ class VoiceSalesAssistantService:
                 self._brain_memories[session_id] = memory
             return memory
 
+    def apply_external_context(
+        self,
+        *,
+        session_id: UUID,
+        account_id: str = "",
+        campaign: str = "default",
+        ani: str = "",
+        dnis: str = "",
+        transfer_metadata: dict[str, str] | None = None,
+    ) -> None:
+        state = self.sessions.get(session_id)
+        if state is None:
+            state = self.sessions.create(session_id)
+        if account_id:
+            state.account_id = account_id
+        if campaign:
+            state.campaign = campaign
+        if ani:
+            state.unresolved_issues.append(f"ani:{ani}")
+        if dnis:
+            state.unresolved_issues.append(f"dnis:{dnis}")
+        if transfer_metadata:
+            for key, value in transfer_metadata.items():
+                if value:
+                    state.unresolved_issues.append(f"transfer_{key}:{value}")
+        state.unresolved_issues = state.unresolved_issues[-10:]
+        state.updated_at_utc = datetime.now(timezone.utc)
+        self.sessions.save(state)
+
     def _start_archival_worker(self) -> None:
         def _loop() -> None:
             while True:

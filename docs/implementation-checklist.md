@@ -46,3 +46,4 @@ Use this as a practical verification sheet for production review.
 - [x] Load testing harness added (`scripts/load_test.py`) for repeatable concurrent traffic validation.
 - [x] Automated chaos/failure injection coverage added (`tests/test_chaos.py`).
 - [x] Real-call quality review harness added (`scripts/quality_review.py`) with scenario scoring.
+- [x] SIP ingress lifecycle tests for header mapping, media bridge, DTMF, hold/resume, transfer, retries, and failover (`tests/test_sip.py`).

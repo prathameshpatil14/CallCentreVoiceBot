@@ -52,6 +52,13 @@ A contact-center sales/support assistant with **no third-party API/model depende
 - `GET /v1/sessions/{session_id}`
 - `POST /v1/sessions/{session_id}/turns`
 - `POST /v1/sessions/{session_id}/voice-turns` (audio in + synthesized audio out via base64)
+- `POST /v1/sip/calls/start`
+- `GET /v1/sip/calls/{call_id}`
+- `POST /v1/sip/calls/{call_id}/media`
+- `POST /v1/sip/calls/{call_id}/dtmf`
+- `POST /v1/sip/calls/{call_id}/hold`
+- `POST /v1/sip/calls/{call_id}/resume`
+- `POST /v1/sip/calls/{call_id}/transfer`
 
 ## Run
 
@@ -73,6 +80,7 @@ python scripts/evaluate_models.py
 PYTHONPATH=src python scripts/load_test.py --base-url http://127.0.0.1:8080 --users 20 --turns 10
 PYTHONPATH=src python scripts/quality_review.py
 PYTHONPATH=src python scripts/run_voice_console.py --base-url http://127.0.0.1:8080
+PYTHONPATH=src pytest tests/test_sip.py -q
 ```
 
 ## Environment variables
