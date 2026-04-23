@@ -89,11 +89,12 @@ class VoiceSalesAssistantService:
 
     def _extract_context(self, state: SessionState, text: str) -> None:
         lower = text.lower()
-        if "my name is" in lower:
-            name_fragment = text.split("my name is", 1)[-1].strip()
-            name_tokens = name_fragment.split()
-            if name_tokens:
-                state.customer_name = name_tokens[0].title()
+        name_match = re.search(r"\bmy name is\s+([a-z][a-z' -]{0,49})", text, re.IGNORECASE)
+        if name_match:
+            raw_name = name_match.group(1).strip()
+            first_token = raw_name.split()[0].strip(".,!?;:\"'()[]{}")
+            if first_token and len(first_token) > 1 and first_token.lower() not in {"my", "name", "is"}:
+                state.customer_name = first_token.title()
         if "prepaid" in lower:
             state.account_type = "prepaid"
         if "postpaid" in lower:
