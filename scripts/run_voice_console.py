@@ -132,8 +132,8 @@ def run_console(base_url: str, sample_rate_hz: int, duration_seconds: int) -> in
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run local mic/speaker voice console against CallCentreVoiceBot API")
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
-    parser.add_argument("--sample-rate-hz", type=int, default=16000)
-    parser.add_argument("--duration-seconds", type=int, default=4)
+    parser.add_argument("--sample-rate-hz", type=int, default=8000)
+    parser.add_argument("--duration-seconds", type=int, default=1)
     args = parser.parse_args()
 
     return run_console(base_url=args.base_url.rstrip("/"), sample_rate_hz=args.sample_rate_hz, duration_seconds=args.duration_seconds)
