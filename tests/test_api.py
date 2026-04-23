@@ -6,7 +6,7 @@ import unittest
 from urllib.error import HTTPError
 from urllib import request
 
-from callcentre_bot.api import create_http_server
+from callcentre_bot.api import BotRequestHandler, create_http_server
 
 
 class ApiTests(unittest.TestCase):
@@ -176,6 +176,31 @@ class ApiTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as raised:
             request.urlopen(voice_req)
         self.assertEqual(raised.exception.code, 400)
+
+    def test_voice_turn_returns_500_on_asr_engine_failure(self) -> None:
+        create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")
+        with request.urlopen(create_req) as create_resp:
+            session_id = json.loads(create_resp.read().decode("utf-8"))["session_id"]
+
+        fake_audio = base64.b64encode(b"I need billing support").decode("ascii")
+        body = json.dumps({"audio_base64": fake_audio, "sample_rate_hz": 16000}).encode("utf-8")
+        voice_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/voice-turns",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        original_asr = BotRequestHandler.service.asr
+        try:
+            failing_asr = unittest.mock.Mock()
+            failing_asr.transcribe.side_effect = RuntimeError("ASR engine unavailable")
+            BotRequestHandler.service.asr = failing_asr
+            with self.assertRaises(HTTPError) as raised:
+                request.urlopen(voice_req)
+            self.assertEqual(raised.exception.code, 500)
+        finally:
+            BotRequestHandler.service.asr = original_asr
 
 
 if __name__ == "__main__":

@@ -1,6 +1,14 @@
 import unittest
+from unittest.mock import patch
 
-from callcentre_bot.voice import OfflineASRAdapter, OfflineTTSAdapter, build_asr_adapter, build_tts_adapter
+from callcentre_bot.voice import (
+    AudioChunk,
+    LocalWhisperCppASRAdapter,
+    OfflineASRAdapter,
+    OfflineTTSAdapter,
+    build_asr_adapter,
+    build_tts_adapter,
+)
 
 
 class VoiceAdapterTests(unittest.TestCase):
@@ -26,6 +34,15 @@ class VoiceAdapterTests(unittest.TestCase):
                 piper_model_path="/tmp/missing-model.onnx",
                 fallback_enabled=False,
             )
+
+    def test_local_whisper_raises_on_subprocess_failure(self) -> None:
+        audio = AudioChunk(pcm16_bytes=b"\x00\x00" * 10, sample_rate_hz=16000)
+        completed = unittest.mock.Mock(returncode=2, stderr="missing model", stdout="")
+        with patch("callcentre_bot.voice.shutil.which", return_value="/usr/bin/whisper-cli"):
+            adapter = LocalWhisperCppASRAdapter("whisper-cli")
+        with patch("callcentre_bot.voice.subprocess.run", return_value=completed):
+            with self.assertRaisesRegex(RuntimeError, "whisper-cli failed"):
+                adapter.transcribe(audio)
 
 
 if __name__ == "__main__":

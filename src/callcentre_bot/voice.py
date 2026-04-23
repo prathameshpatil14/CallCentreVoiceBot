@@ -80,7 +80,8 @@ class LocalWhisperCppASRAdapter(ASRAdapter):
             ]
             completed = subprocess.run(cmd, capture_output=True, text=True, check=False)
             if completed.returncode != 0:
-                return ""
+                stderr = completed.stderr.strip()
+                raise RuntimeError(f"whisper-cli failed with exit code {completed.returncode}: {stderr or 'unknown error'}")
 
             txt_path = Path(tmp) / "transcript.txt"
             if txt_path.exists():
