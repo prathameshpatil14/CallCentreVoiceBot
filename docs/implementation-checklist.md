@@ -6,7 +6,10 @@ Use this as a practical verification sheet for production review.
 
 - [x] Intent and sentiment modelling with train/validation/test discipline.
 - [x] NLU normalization for spelling/Hinglish variants.
+- [x] Hindi/Marathi dataset coverage in intent/sentiment train/validation/test splits.
+- [x] Script-aware normalization and language detection (`en`, `hinglish`, `hi`, `mr`).
 - [x] Per-intent confidence thresholds and confidence-aware clarifications.
+- [x] Language-specific confidence thresholds and evaluation reporting.
 - [x] Policy reranking for selecting best response/action.
 - [x] Brain-like orchestration layer (planner + memory + reflection + safety governor).
 - [x] Journey state machine (`sell`, `upsell`, `complaint`, `refund`, `general`).

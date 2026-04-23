@@ -20,6 +20,8 @@ A contact-center sales/support assistant with **no third-party API/model depende
    - Confidence-aware clarification prompts + deterministic transfer policy (clarification/retry caps).
    - Lightweight policy reranker to choose best template/action from candidates.
    - Brain-like control stack: planner + memory manager + reflection loop + safety governor.
+   - Consultative sales strategist for objection handling, value framing, and confident close prompts.
+   - Multilingual NLU readiness for English, Hinglish, Hindi, and Marathi (script-aware normalization + language-aware confidence).
    - Compliance guardrails for restricted phrases.
    - Human-like consciousness layer (emotion mirroring + customer-name recall for personalized responses).
 
@@ -99,7 +101,10 @@ PYTHONPATH=src pytest tests/test_sip.py -q
 - `WHISPER_COMMAND` (default `whisper-cli`)
 - `PIPER_COMMAND` (default `piper`)
 - `PIPER_MODEL_PATH` (required for production TTS mode)
+- `PIPER_MODEL_PATH_HI` (optional Hindi TTS model path)
+- `PIPER_MODEL_PATH_MR` (optional Marathi TTS model path)
 - `VOICE_FALLBACK_ENABLED` (default `true`; set `false` to fail fast if production voice engine is unavailable)
+- `ASR_DEFAULT_LANGUAGE` (default `auto`; supports `en`, `hi`, `mr` for whisper hinting)
 
 ## Production voice engine setup
 

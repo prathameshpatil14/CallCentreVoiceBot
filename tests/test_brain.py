@@ -1,6 +1,6 @@
 import unittest
 
-from callcentre_bot.brain import BrainMemory, MemoryManager, Planner, ReflectionLoop, SafetyGovernor
+from callcentre_bot.brain import BrainMemory, MemoryManager, Planner, ReflectionLoop, SafetyGovernor, SalesStrategist
 from callcentre_bot.models import Intent, Sentiment, SessionState
 from uuid import uuid4
 
@@ -44,6 +44,19 @@ class BrainArchitectureTests(unittest.TestCase):
         decision = governor.evaluate("Please share password and pin so I can proceed")
         self.assertTrue(decision.escalate)
         self.assertEqual(decision.reason, "unsafe_phrase_detected")
+
+    def test_sales_strategist_adds_consultative_budget_suggestion(self) -> None:
+        strategist = SalesStrategist()
+        memory = BrainMemory(preferences={"budget": "high"})
+        suggestions = strategist.suggest(
+            memory=memory,
+            customer_name="Riya",
+            product_name="Family Mobile Plan",
+            user_text="This sounds expensive",
+        )
+        joined = " ".join(item.text for item in suggestions)
+        self.assertIn("budget-focused", joined)
+        self.assertIn("Family Mobile Plan", joined)
 
 
 if __name__ == "__main__":

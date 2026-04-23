@@ -14,7 +14,7 @@ def load_jsonl(path: Path) -> list[dict[str, str]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def evaluate(label_type: str, records: list[dict[str, str]], predictor) -> None:
+def evaluate(label_type: str, records: list[dict[str, str]], predictor, language_detector=None) -> None:
     labels = sorted({record["label"] for record in records})
     confusion: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     correct = 0
@@ -43,14 +43,24 @@ def evaluate(label_type: str, records: list[dict[str, str]], predictor) -> None:
         row = {pred: confusion[expected][pred] for pred in labels}
         print(f"    {expected}: {row}")
 
+    if language_detector is not None:
+        language_totals: dict[str, list[bool]] = defaultdict(list)
+        for record in records:
+            language = language_detector(record["text"])
+            language_totals[language].append(predictor(record["text"]) == record["label"])
+        print("  language-specific accuracy:")
+        for language in sorted(language_totals):
+            rows = language_totals[language]
+            print(f"    {language}: {sum(rows) / max(1, len(rows)):.3f} ({len(rows)} samples)")
+
 
 def main() -> None:
     nlu = InHouseNLUEngine()
     intent_records = load_jsonl(ROOT / "src/callcentre_bot/data/intent_test.jsonl")
     sentiment_records = load_jsonl(ROOT / "src/callcentre_bot/data/sentiment_test.jsonl")
 
-    evaluate("intent", intent_records, lambda text: nlu.analyze(text).intent.value)
-    evaluate("sentiment", sentiment_records, lambda text: nlu.analyze(text).sentiment.value)
+    evaluate("intent", intent_records, lambda text: nlu.analyze(text).intent.value, language_detector=nlu.detect_language)
+    evaluate("sentiment", sentiment_records, lambda text: nlu.analyze(text).sentiment.value, language_detector=nlu.detect_language)
 
 
 if __name__ == "__main__":

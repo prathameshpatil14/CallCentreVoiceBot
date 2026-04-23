@@ -154,3 +154,51 @@ class SafetyGovernor:
             return SafetyDecision(safe_text=trimmed, escalate=False, reason="length_trimmed")
 
         return SafetyDecision(safe_text=trimmed, escalate=False, reason="ok")
+
+
+@dataclass(frozen=True)
+class SalesSuggestion:
+    text: str
+
+
+class SalesStrategist:
+    """Consultative sales strategy layer to make decisions less template-rigid."""
+
+    def suggest(self, *, memory: BrainMemory, customer_name: str, product_name: str, user_text: str) -> list[SalesSuggestion]:
+        suggestions: list[SalesSuggestion] = []
+        name_prefix = f"{customer_name}, " if customer_name else ""
+        lower = user_text.lower()
+
+        if "expensive" in lower or "costly" in lower:
+            suggestions.append(
+                SalesSuggestion(
+                    text=f"{name_prefix}I understand pricing matters. I can compare monthly cost and total value before you decide."
+                )
+            )
+        if "later" in lower or "call back" in lower or "think about it" in lower:
+            suggestions.append(
+                SalesSuggestion(
+                    text=f"{name_prefix}No problem. I can summarize this offer and schedule a follow-up at your preferred time."
+                )
+            )
+
+        if memory.preferences.get("budget") == "high":
+            suggestions.append(
+                SalesSuggestion(
+                    text=f"{name_prefix}For a budget-focused choice, I can suggest the best-value plan and show what you save monthly."
+                )
+            )
+        if memory.preferences.get("speed") == "high":
+            suggestions.append(
+                SalesSuggestion(
+                    text=f"{name_prefix}If speed is your priority, I can recommend the fastest stable option for your usage."
+                )
+            )
+
+        if product_name:
+            suggestions.append(
+                SalesSuggestion(
+                    text=f"{name_prefix}Would you like me to finalize {product_name} now, or compare it with one alternative first?"
+                )
+            )
+        return suggestions

@@ -34,7 +34,10 @@ class Settings:
     whisper_command: str
     piper_command: str
     piper_model_path: str
+    piper_model_path_hi: str
+    piper_model_path_mr: str
     voice_fallback_enabled: bool
+    asr_default_language: str
 
 
 def _float_env(name: str, default: float) -> float:
@@ -90,5 +93,8 @@ settings = Settings(
     whisper_command=os.getenv("WHISPER_COMMAND", "whisper-cli").strip(),
     piper_command=os.getenv("PIPER_COMMAND", "piper").strip(),
     piper_model_path=os.getenv("PIPER_MODEL_PATH", "").strip(),
+    piper_model_path_hi=os.getenv("PIPER_MODEL_PATH_HI", "").strip(),
+    piper_model_path_mr=os.getenv("PIPER_MODEL_PATH_MR", "").strip(),
     voice_fallback_enabled=os.getenv("VOICE_FALLBACK_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
+    asr_default_language=os.getenv("ASR_DEFAULT_LANGUAGE", "auto").strip().lower(),
 )

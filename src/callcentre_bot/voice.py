@@ -39,19 +39,19 @@ class VoiceActivityDetector:
 
 
 class ASRAdapter:
-    def transcribe(self, audio: AudioChunk) -> str:
+    def transcribe(self, audio: AudioChunk, language_hint: str = "auto") -> str:
         raise NotImplementedError
 
 
 class TTSAdapter:
-    def synthesize(self, text: str) -> AudioChunk:
+    def synthesize(self, text: str, language: str = "en") -> AudioChunk:
         raise NotImplementedError
 
 
 class OfflineASRAdapter(ASRAdapter):
     """Fallback decoder used only when production engines are unavailable."""
 
-    def transcribe(self, audio: AudioChunk) -> str:
+    def transcribe(self, audio: AudioChunk, language_hint: str = "auto") -> str:
         try:
             return audio.pcm16_bytes.decode("utf-8").strip()
         except UnicodeDecodeError:
@@ -66,7 +66,7 @@ class LocalWhisperCppASRAdapter(ASRAdapter):
         if not shutil.which(command):
             raise RuntimeError(f"ASR command not found: {command}")
 
-    def transcribe(self, audio: AudioChunk) -> str:
+    def transcribe(self, audio: AudioChunk, language_hint: str = "auto") -> str:
         with tempfile.TemporaryDirectory(prefix="voice_asr_") as tmp:
             wav_path = Path(tmp) / "input.wav"
             _write_wav(wav_path, audio)
@@ -78,6 +78,8 @@ class LocalWhisperCppASRAdapter(ASRAdapter):
                 "-of",
                 str(Path(tmp) / "transcript"),
             ]
+            if language_hint and language_hint != "auto":
+                cmd += ["-l", language_hint]
             completed = subprocess.run(cmd, capture_output=True, text=True, check=False)
             if completed.returncode != 0:
                 return ""
@@ -91,7 +93,7 @@ class LocalWhisperCppASRAdapter(ASRAdapter):
 class OfflineTTSAdapter(TTSAdapter):
     """Fallback tone generator used when production TTS is unavailable."""
 
-    def synthesize(self, text: str) -> AudioChunk:
+    def synthesize(self, text: str, language: str = "en") -> AudioChunk:
         duration_seconds = min(3, max(1, len(text) // 40 + 1))
         sample_rate = 16000
         frequency = 220.0
@@ -106,21 +108,26 @@ class OfflineTTSAdapter(TTSAdapter):
 class LocalPiperTTSAdapter(TTSAdapter):
     """Production TTS using local piper binary and local model file."""
 
-    def __init__(self, command: str, model_path: str) -> None:
+    def __init__(self, command: str, model_path: str, multilingual_models: dict[str, str] | None = None) -> None:
         self.command = command
         self.model_path = model_path
+        self.multilingual_models = multilingual_models or {}
         if not shutil.which(command):
             raise RuntimeError(f"TTS command not found: {command}")
         if not model_path or not Path(model_path).exists():
             raise RuntimeError("PIPER_MODEL_PATH must point to a valid local model file")
+        for language, path in self.multilingual_models.items():
+            if path and not Path(path).exists():
+                raise RuntimeError(f"TTS model for {language} not found at {path}")
 
-    def synthesize(self, text: str) -> AudioChunk:
+    def synthesize(self, text: str, language: str = "en") -> AudioChunk:
         with tempfile.TemporaryDirectory(prefix="voice_tts_") as tmp:
             out_wav = Path(tmp) / "speech.wav"
+            selected_model = self.multilingual_models.get(language) or self.model_path
             cmd = [
                 self.command,
                 "--model",
-                self.model_path,
+                selected_model,
                 "--output_file",
                 str(out_wav),
             ]
@@ -154,10 +161,16 @@ def build_asr_adapter(mode: str, whisper_command: str, fallback_enabled: bool) -
     return OfflineASRAdapter()
 
 
-def build_tts_adapter(mode: str, piper_command: str, piper_model_path: str, fallback_enabled: bool) -> TTSAdapter:
+def build_tts_adapter(
+    mode: str,
+    piper_command: str,
+    piper_model_path: str,
+    fallback_enabled: bool,
+    multilingual_models: dict[str, str] | None = None,
+) -> TTSAdapter:
     if mode in {"auto", "production"}:
         try:
-            return LocalPiperTTSAdapter(piper_command, piper_model_path)
+            return LocalPiperTTSAdapter(piper_command, piper_model_path, multilingual_models=multilingual_models)
         except RuntimeError:
             if not fallback_enabled:
                 raise

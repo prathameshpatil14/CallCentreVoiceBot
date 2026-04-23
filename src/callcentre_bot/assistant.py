@@ -7,7 +7,7 @@ from threading import Thread
 import time
 from uuid import UUID
 
-from .brain import BrainMemory, MemoryManager, Planner, ReflectionLoop, SafetyGovernor
+from .brain import BrainMemory, MemoryManager, Planner, ReflectionLoop, SafetyGovernor, SalesStrategist
 from .config import settings
 from .db import SessionPersistence, create_store
 from .flows import CAMPAIGN_FLOWS, RESTRICTED_PHRASES
@@ -71,6 +71,7 @@ class VoiceSalesAssistantService:
         self.memory_manager = MemoryManager()
         self.reflection = ReflectionLoop()
         self.safety_governor = SafetyGovernor()
+        self.sales_strategist = SalesStrategist()
         self.vad = VoiceActivityDetector()
         self.asr = build_asr_adapter(
             mode=settings.voice_engine_mode,
@@ -82,6 +83,10 @@ class VoiceSalesAssistantService:
             piper_command=settings.piper_command,
             piper_model_path=settings.piper_model_path,
             fallback_enabled=settings.voice_fallback_enabled,
+            multilingual_models={
+                "hi": settings.piper_model_path_hi,
+                "mr": settings.piper_model_path_mr,
+            },
         )
         self._brain_memories: dict[UUID, BrainMemory] = {}
         self._brain_lock = Lock()
@@ -219,7 +224,15 @@ class VoiceSalesAssistantService:
 
         return response_text
 
-    def decide_response(self, state: SessionState, text: str, intent: Intent, sentiment: Sentiment, confidence: float) -> Decision:
+    def decide_response(
+        self,
+        state: SessionState,
+        text: str,
+        intent: Intent,
+        sentiment: Sentiment,
+        confidence: float,
+        memory: BrainMemory | None = None,
+    ) -> Decision:
         faq_answer, faq_score = self.knowledge.best_faq_match(text)
         product, product_score = self.knowledge.best_product_match(text)
         candidates: list[PolicyCandidate] = []
@@ -247,6 +260,14 @@ class VoiceSalesAssistantService:
                         text=f"{product.name} is {product.price}. {product.pitch} {disclaimer} Would you like me to place the order now?"
                     )
                 )
+            if memory is not None:
+                for suggestion in self.sales_strategist.suggest(
+                    memory=memory,
+                    customer_name=state.customer_name,
+                    product_name=product.name,
+                    user_text=text,
+                ):
+                    candidates.append(PolicyCandidate(text=suggestion.text))
 
         if intent == Intent.support:
             candidates.append(PolicyCandidate(text="I can help troubleshoot. Please share what is failing and when it started."))
@@ -289,7 +310,7 @@ class VoiceSalesAssistantService:
 
         self._extract_context(state, text)
         nlu_result = self.nlu.analyze(text)
-        confident = self.nlu.is_intent_confident(nlu_result.intent, nlu_result.confidence)
+        confident = self.nlu.is_intent_confident(nlu_result.intent, nlu_result.confidence, text=text)
         memory = self._memory_for_session(session_id)
         self.memory_manager.update_from_turn(memory, state, text, nlu_result.intent)
         plan = self.planner.build_plan(
@@ -299,7 +320,14 @@ class VoiceSalesAssistantService:
             confident=confident,
             user_text=text,
         )
-        decision = self.decide_response(state, text, nlu_result.intent, nlu_result.sentiment, nlu_result.confidence)
+        decision = self.decide_response(
+            state,
+            text,
+            nlu_result.intent,
+            nlu_result.sentiment,
+            nlu_result.confidence,
+            memory=memory,
+        )
 
         if nlu_result.sentiment.value == "negative":
             state.consecutive_negative_turns += 1
@@ -410,7 +438,7 @@ class VoiceSalesAssistantService:
             fallback_used = True
             fallback_reason = "no_speech_detected"
         else:
-            transcript = self.asr.transcribe(audio).strip()
+            transcript = self.asr.transcribe(audio, language_hint=settings.asr_default_language).strip()
             if not transcript:
                 text_reply = "I could not transcribe that. Please repeat your request."
                 fallback_used = True
@@ -421,8 +449,9 @@ class VoiceSalesAssistantService:
 
         audio_base64 = ""
         synthesized_rate = sample_rate_hz
+        response_language = self.nlu.detect_language(transcript or text_reply)
         try:
-            spoken = self.tts.synthesize(text_reply)
+            spoken = self.tts.synthesize(text_reply, language=response_language)
             audio_base64 = base64.b64encode(spoken.pcm16_bytes).decode("ascii")
             synthesized_rate = spoken.sample_rate_hz
         except Exception:

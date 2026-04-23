@@ -95,6 +95,15 @@ class BotRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized", "request_id": request_id})
             return
 
+        if path.startswith("/v1/sip/calls/"):
+            call_id = path.removeprefix("/v1/sip/calls/").strip("/")
+            call = self.sip.get_call(call_id)
+            if call is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "call not found", "request_id": request_id})
+                return
+            self._send_json(HTTPStatus.OK, self.sip.serialize_call(call) | {"request_id": request_id})
+            return
+
         if path.startswith("/v1/sessions/"):
             session_id = path.removeprefix("/v1/sessions/")
             try:
