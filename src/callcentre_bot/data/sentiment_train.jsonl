@@ -7,3 +7,8 @@
 {"label":"negative","text":"this is terrible and frustrating"}
 {"label":"negative","text":"I am upset service is bad"}
 {"label":"negative","text":"bahut kharab experience"}
+
+{"label": "positive", "text": "सेवा बहुत अच्छी है"}
+{"label": "positive", "text": "सेवा खूप छान आहे"}
+{"label": "negative", "text": "ही सेवा खूप वाईट आहे"}
+{"label": "negative", "text": "यह बहुत खराब अनुभव है"}

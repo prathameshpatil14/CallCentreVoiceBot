@@ -1,4 +1,5 @@
 import json
+import base64
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -10,11 +11,13 @@ from .assistant import VoiceSalesAssistantService
 from .config import settings
 from .models import SessionCreateResponse, UserTurnRequest
 from .rate_limit import SlidingWindowRateLimiter
+from .sip import SipIngressService
 
 
 class BotRequestHandler(BaseHTTPRequestHandler):
     service = VoiceSalesAssistantService()
     limiter = SlidingWindowRateLimiter(settings.rate_limit_per_minute)
+    sip = SipIngressService(service)
 
     def _request_id(self) -> str:
         return self.headers.get("X-Request-ID", str(uuid4()))
@@ -44,6 +47,13 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         return not self.limiter.allow(client)
 
     def do_GET(self) -> None:  # noqa: N802
+        try:
+            self._do_get_impl()
+        except Exception:
+            request_id = self._request_id()
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal server error", "request_id": request_id})
+
+    def _do_get_impl(self) -> None:
         request_id = self._request_id()
         parsed = urlparse(self.path)
         path = parsed.path
@@ -76,6 +86,15 @@ class BotRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized", "request_id": request_id})
             return
 
+        if path.startswith("/v1/sip/calls/"):
+            call_id = path.removeprefix("/v1/sip/calls/").strip("/")
+            call = self.sip.get_call(call_id)
+            if call is None:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "call not found", "request_id": request_id})
+                return
+            self._send_json(HTTPStatus.OK, self.sip.serialize_call(call) | {"request_id": request_id})
+            return
+
         if path.startswith("/v1/sessions/"):
             session_id = path.removeprefix("/v1/sessions/")
             try:
@@ -97,6 +116,13 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found", "request_id": request_id})
 
     def do_POST(self) -> None:  # noqa: N802
+        try:
+            self._do_post_impl()
+        except Exception:
+            request_id = self._request_id()
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal server error", "request_id": request_id})
+
+    def _do_post_impl(self) -> None:
         request_id = self._request_id()
         if not self._tls_ok():
             self._send_json(HTTPStatus.UPGRADE_REQUIRED, {"error": "tls required", "request_id": request_id})
@@ -118,6 +144,22 @@ class BotRequestHandler(BaseHTTPRequestHandler):
             self.service.sessions.create(session.session_id)
             payload = session.to_dict() | {"request_id": request_id}
             self._send_json(HTTPStatus.CREATED, payload)
+            return
+
+        if path == "/v1/sip/calls/start":
+            payload = self._read_json_body(request_id)
+            if payload is None:
+                return
+            sip_headers = payload.get("sip_headers", {})
+            if not isinstance(sip_headers, dict):
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "sip_headers must be an object", "request_id": request_id})
+                return
+            call_id = str(payload.get("call_id", "")).strip() or None
+            call = self.sip.start_call(sip_headers={str(k): str(v) for k, v in sip_headers.items()}, call_id=call_id)
+            self._send_json(
+                HTTPStatus.CREATED,
+                self.sip.serialize_call(call) | {"request_id": request_id},
+            )
             return
 
         if path.startswith("/v1/sessions/") and path.endswith("/turns"):
@@ -142,10 +184,137 @@ class BotRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, reply.to_dict())
             return
 
+        if path.startswith("/v1/sip/calls/") and path.endswith("/media"):
+            call_id = path.removeprefix("/v1/sip/calls/").removesuffix("/media").strip("/")
+            payload = self._read_json_body(request_id)
+            if payload is None:
+                return
+            audio_base64 = str(payload.get("audio_base64", "")).strip()
+            if not audio_base64:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "audio_base64 is required", "request_id": request_id})
+                return
+            try:
+                sample_rate_hz = int(payload.get("sample_rate_hz", 16000))
+            except (TypeError, ValueError):
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "sample_rate_hz must be an integer", "request_id": request_id})
+                return
+            try:
+                reply = self.sip.process_media(
+                    call_id=call_id,
+                    audio_base64=audio_base64,
+                    sample_rate_hz=sample_rate_hz,
+                    request_id=request_id,
+                )
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "call not found", "request_id": request_id})
+                return
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_GATEWAY, {"error": "media bridge failure", "detail": str(exc), "request_id": request_id})
+                return
+            self._send_json(HTTPStatus.OK, reply | {"request_id": request_id})
+            return
+
+        if path.startswith("/v1/sip/calls/") and path.endswith("/dtmf"):
+            call_id = path.removeprefix("/v1/sip/calls/").removesuffix("/dtmf").strip("/")
+            payload = self._read_json_body(request_id)
+            if payload is None:
+                return
+            digit = str(payload.get("digit", "")).strip()
+            if not digit:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "digit is required", "request_id": request_id})
+                return
+            try:
+                event = self.sip.dtmf_event(call_id, digit)
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "call not found", "request_id": request_id})
+                return
+            self._send_json(HTTPStatus.OK, event | {"request_id": request_id})
+            return
+
+        if path.startswith("/v1/sip/calls/") and path.endswith("/hold"):
+            call_id = path.removeprefix("/v1/sip/calls/").removesuffix("/hold").strip("/")
+            try:
+                event = self.sip.hold_call(call_id)
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "call not found", "request_id": request_id})
+                return
+            self._send_json(HTTPStatus.OK, event | {"request_id": request_id})
+            return
+
+        if path.startswith("/v1/sip/calls/") and path.endswith("/resume"):
+            call_id = path.removeprefix("/v1/sip/calls/").removesuffix("/resume").strip("/")
+            try:
+                event = self.sip.resume_call(call_id)
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "call not found", "request_id": request_id})
+                return
+            self._send_json(HTTPStatus.OK, event | {"request_id": request_id})
+            return
+
+        if path.startswith("/v1/sip/calls/") and path.endswith("/transfer"):
+            call_id = path.removeprefix("/v1/sip/calls/").removesuffix("/transfer").strip("/")
+            payload = self._read_json_body(request_id)
+            if payload is None:
+                return
+            reason = str(payload.get("reason", "requested")).strip()
+            try:
+                event = self.sip.transfer_call(call_id, reason)
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "call not found", "request_id": request_id})
+                return
+            self._send_json(HTTPStatus.OK, event | {"request_id": request_id})
+            return
+
+        if path.startswith("/v1/sessions/") and path.endswith("/voice-turns"):
+            session_id = path.removeprefix("/v1/sessions/").removesuffix("/voice-turns")
+            session_id = session_id.strip("/")
+            try:
+                parsed_id = UUID(session_id)
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid session id", "request_id": request_id})
+                return
+
+            payload = self._read_json_body(request_id)
+            if payload is None:
+                return
+
+            encoded_audio = str(payload.get("audio_base64", "")).strip()
+            if not encoded_audio:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "audio_base64 is required", "request_id": request_id})
+                return
+
+            try:
+                audio_bytes = base64.b64decode(encoded_audio, validate=True)
+            except Exception:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "audio_base64 is invalid", "request_id": request_id})
+                return
+
+            try:
+                sample_rate_hz = int(payload.get("sample_rate_hz", 16000))
+            except (TypeError, ValueError):
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "sample_rate_hz must be an integer", "request_id": request_id})
+                return
+            if sample_rate_hz < 8000 or sample_rate_hz > 48000:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "sample_rate_hz out of range", "request_id": request_id})
+                return
+
+            reply = self.service.handle_voice_turn(
+                session_id=parsed_id,
+                request_id=request_id,
+                audio_bytes=audio_bytes,
+                sample_rate_hz=sample_rate_hz,
+            )
+            self._send_json(HTTPStatus.OK, reply.to_dict())
+            return
+
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found", "request_id": request_id})
 
     def _read_json_body(self, request_id: str) -> dict[str, Any] | None:
-        content_length = int(self.headers.get("Content-Length", "0"))
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid content-length", "request_id": request_id})
+            return None
         if content_length > settings.max_request_bytes:
             self._send_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "payload too large", "request_id": request_id})
             return None

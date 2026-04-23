@@ -30,6 +30,14 @@ class Settings:
     max_retries_before_transfer: int
     drift_report_path: str
     drift_report_interval_seconds: int
+    voice_engine_mode: str
+    whisper_command: str
+    piper_command: str
+    piper_model_path: str
+    piper_model_path_hi: str
+    piper_model_path_mr: str
+    voice_fallback_enabled: bool
+    asr_default_language: str
 
 
 def _float_env(name: str, default: float) -> float:
@@ -81,4 +89,12 @@ settings = Settings(
     max_retries_before_transfer=_int_env("MAX_RETRIES_BEFORE_TRANSFER", 2, 1, 10),
     drift_report_path=os.getenv("DRIFT_REPORT_PATH", "var/drift_weekly.jsonl").strip(),
     drift_report_interval_seconds=_int_env("DRIFT_REPORT_INTERVAL_SECONDS", 604800, 300, 1209600),
+    voice_engine_mode=os.getenv("VOICE_ENGINE_MODE", "auto").strip().lower(),
+    whisper_command=os.getenv("WHISPER_COMMAND", "whisper-cli").strip(),
+    piper_command=os.getenv("PIPER_COMMAND", "piper").strip(),
+    piper_model_path=os.getenv("PIPER_MODEL_PATH", "").strip(),
+    piper_model_path_hi=os.getenv("PIPER_MODEL_PATH_HI", "").strip(),
+    piper_model_path_mr=os.getenv("PIPER_MODEL_PATH_MR", "").strip(),
+    voice_fallback_enabled=os.getenv("VOICE_FALLBACK_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
+    asr_default_language=os.getenv("ASR_DEFAULT_LANGUAGE", "auto").strip().lower(),
 )
