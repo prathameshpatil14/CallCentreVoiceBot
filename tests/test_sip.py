@@ -7,6 +7,7 @@ from urllib import request
 from urllib.error import HTTPError
 
 from callcentre_bot.api import create_http_server
+from callcentre_bot.config import settings
 
 
 class SipIngressTests(unittest.TestCase):
@@ -118,6 +119,31 @@ class SipIngressTests(unittest.TestCase):
             state = json.loads(get_resp.read().decode("utf-8"))
         self.assertEqual(state["retry_count"], 2)
         self.assertEqual(state["failover_gateway"], "secondary")
+
+    def test_get_call_requires_auth_when_api_key_is_configured(self) -> None:
+        call_id = self._start_call()
+
+        previous_api_key = settings.api_key
+        previous_api_keys = settings.valid_api_keys
+        object.__setattr__(settings, "api_key", "secret-key")
+        object.__setattr__(settings, "valid_api_keys", ())
+        try:
+            unauthenticated_get = request.Request(f"http://127.0.0.1:18082/v1/sip/calls/{call_id}")
+            with self.assertRaises(HTTPError) as raised:
+                request.urlopen(unauthenticated_get)
+            self.assertEqual(raised.exception.code, 401)
+
+            authenticated_get = request.Request(
+                f"http://127.0.0.1:18082/v1/sip/calls/{call_id}",
+                headers={"X-API-Key": "secret-key"},
+            )
+            with request.urlopen(authenticated_get) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            self.assertEqual(response.status, 200)
+            self.assertEqual(payload["call_id"], call_id)
+        finally:
+            object.__setattr__(settings, "api_key", previous_api_key)
+            object.__setattr__(settings, "valid_api_keys", previous_api_keys)
 
 
 if __name__ == "__main__":
