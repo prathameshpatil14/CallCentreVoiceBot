@@ -1,10 +1,11 @@
-import json
 from pathlib import Path
 import re
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from threading import Lock
+
+from .json_codec import dumps
 
 
 PII_PATTERNS = [
@@ -27,7 +28,7 @@ def redact_pii(text: str) -> str:
 class StructuredLogger:
     def info(self, event: str, **kwargs: object) -> None:
         payload = {"event": event, "ts": time.time(), **kwargs}
-        print(json.dumps(payload, ensure_ascii=False))
+        print(dumps(payload))
 
 
 class AuditLogger(StructuredLogger):
@@ -90,5 +91,5 @@ class DriftMonitor:
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            handle.write(dumps(payload) + "\n")
         return payload["drift"]

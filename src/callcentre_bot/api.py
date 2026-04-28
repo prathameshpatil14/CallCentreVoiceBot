@@ -1,4 +1,3 @@
-import json
 import base64
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -9,6 +8,7 @@ from uuid import UUID, uuid4
 
 from .assistant import VoiceSalesAssistantService
 from .config import settings
+from .json_codec import dumpb, loads
 from .models import SessionCreateResponse, UserTurnRequest
 from .rate_limit import SlidingWindowRateLimiter
 from .sip import SipIngressService
@@ -330,8 +330,8 @@ class BotRequestHandler(BaseHTTPRequestHandler):
 
         raw = self.rfile.read(content_length) if content_length > 0 else b"{}"
         try:
-            payload = json.loads(raw.decode("utf-8"))
-        except json.JSONDecodeError:
+            payload = loads(raw)
+        except ValueError:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid json", "request_id": request_id})
             return None
         if not isinstance(payload, dict):
@@ -340,7 +340,7 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         return payload
 
     def _send_json(self, status_code: HTTPStatus, payload: dict[str, Any]) -> None:
-        body = json.dumps(payload).encode("utf-8")
+        body = dumpb(payload)
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -355,8 +355,8 @@ class BotRequestHandler(BaseHTTPRequestHandler):
         if not lines:
             return {"status": "no drift reports yet"}
         try:
-            payload = json.loads(lines[-1])
-        except json.JSONDecodeError:
+            payload = loads(lines[-1])
+        except ValueError:
             return {"status": "drift report unreadable"}
         return {"status": "ok", "latest": payload}
 

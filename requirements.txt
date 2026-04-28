@@ -1,2 +1,12 @@
-# No third-party runtime dependencies.
-# This service uses Python standard library only.
+# Third-party Python libraries are allowed in this bot wherever they improve
+# robustness, speed, or accuracy while still supporting restricted/offline
+# call-center deployments.
+
+# Fast JSON serialization/deserialization used across API + observability paths.
+orjson>=3.10,<4.0
+
+# Fuzzy matching for typo-tolerant multilingual normalization in NLU.
+rapidfuzz>=3.9,<4.0
+
+# PostgreSQL backend dependency (required when DB_BACKEND=postgres).
+psycopg[binary]>=3.1,<4.0

@@ -1,10 +1,12 @@
 from dataclasses import dataclass
-import json
+import importlib
+import importlib.util
 from pathlib import Path
 from collections import Counter
 import re
 
 from .config import settings
+from .json_codec import loads
 from .ml import NaiveBayesTextClassifier
 from .models import Intent, Sentiment
 
@@ -41,6 +43,9 @@ NORMALIZATION_MAP = {
 DEVANAGARI_PATTERN = re.compile(r"[\u0900-\u097F]")
 HINGLISH_MARKERS = {"mujhe", "nahi", "kaise", "kya", "hai", "bill", "net"}
 MARATHI_MARKERS = {"माझे", "मला", "पाहिजे", "नको", "कृपया", "योजना", "पैसे"}
+_RAPIDFUZZ_SPEC = importlib.util.find_spec("rapidfuzz")
+_RAPIDFUZZ_PROCESS = importlib.import_module("rapidfuzz.process") if _RAPIDFUZZ_SPEC else None
+_NORMALIZATION_KEYS = tuple(NORMALIZATION_MAP.keys())
 
 
 class InHouseNLUEngine:
@@ -54,8 +59,19 @@ class InHouseNLUEngine:
 
     def _normalize(self, text: str) -> str:
         words = re.findall(r"[\w\u0900-\u097F]+", text.lower())
-        normalized = [NORMALIZATION_MAP.get(word, word) for word in words]
+        normalized = [self._normalize_token(word) for word in words]
         return " ".join(normalized)
+
+    def _normalize_token(self, word: str) -> str:
+        mapped = NORMALIZATION_MAP.get(word)
+        if mapped is not None:
+            return mapped
+        if _RAPIDFUZZ_PROCESS is None:
+            return word
+        fuzzy_match = _RAPIDFUZZ_PROCESS.extractOne(word, _NORMALIZATION_KEYS, score_cutoff=90)
+        if not fuzzy_match:
+            return word
+        return NORMALIZATION_MAP.get(fuzzy_match[0], word)
 
     def detect_language(self, text: str) -> str:
         lowered = text.lower()
@@ -73,7 +89,7 @@ class InHouseNLUEngine:
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
-            payload = json.loads(line)
+            payload = loads(line)
             label = str(payload["label"])
             text = self._normalize(str(payload["text"]))
             if settings.model_variant == "B":
