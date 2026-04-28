@@ -1,6 +1,10 @@
 {"label":"positive","text":"excellent support team"}
 {"label":"neutral","text":"need information on recharge"}
 {"label":"negative","text":"I am angry and disappointed"}
-
-{"label": "positive", "text": "मुझे आपकी सेवा पसंद आई"}
-{"label": "negative", "text": "माझा अनुभव खूप वाईट आहे"}
+{"label":"positive","text":"मुझे आपकी सेवा पसंद आई"}
+{"label":"negative","text":"माझा अनुभव खूप वाईट आहे"}
+{"label":"positive","text":"Fantastic support, problem solved in one call"}
+{"label":"neutral","text":"Can you tell me data balance check code?"}
+{"label":"negative","text":"I am upset because refund is still pending"}
+{"label":"negative","text":"This is the worst call quality I have seen"}
+{"label":"positive","text":"खूप छान मदत मिळाली धन्यवाद"}

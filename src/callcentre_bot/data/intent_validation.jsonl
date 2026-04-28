@@ -5,6 +5,10 @@
 {"label":"refund","text":"Where is my refund amount"}
 {"label":"upsell","text":"Can I get a better data pack"}
 {"label":"unknown","text":"good morning"}
-
-{"label": "support", "text": "माझे नेट बंद आहे"}
-{"label": "faq", "text": "मेरा रिफंड कब मिलेगा"}
+{"label":"support","text":"माझे नेट बंद आहे"}
+{"label":"faq","text":"मेरा रिफंड कब मिलेगा"}
+{"label":"sales","text":"I want to compare broadband offers before buying"}
+{"label":"faq","text":"How many days does SIM delivery usually take?"}
+{"label":"support","text":"Voice is breaking during calls on my number"}
+{"label":"refund","text":"Recharge failed yesterday, when will I get refund?"}
+{"label":"upsell","text":"Upgrade my current package with OTT benefits"}
