@@ -166,6 +166,34 @@ class ApiTests(unittest.TestCase):
         self.assertIn("Alice", reply["text"])
         self.assertNotIn("My,", reply["text"])
 
+    def test_human_like_consciousness_supports_unicode_name(self) -> None:
+        create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")
+        with request.urlopen(create_req) as create_resp:
+            session_id = json.loads(create_resp.read().decode("utf-8"))["session_id"]
+
+        intro_payload = json.dumps({"text": "My name is José"}).encode("utf-8")
+        intro_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/turns",
+            data=intro_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(intro_req) as intro_resp:
+            self.assertEqual(intro_resp.status, 200)
+
+        follow_payload = json.dumps({"text": "I need help with billing support"}).encode("utf-8")
+        follow_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/turns",
+            data=follow_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(follow_req) as follow_resp:
+            reply = json.loads(follow_resp.read().decode("utf-8"))
+
+        self.assertIn("José", reply["text"])
+        self.assertNotIn("Jos,", reply["text"])
+
 
 if __name__ == "__main__":
     unittest.main()
