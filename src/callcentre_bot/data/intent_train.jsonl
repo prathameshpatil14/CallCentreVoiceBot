@@ -20,3 +20,8 @@
 {"label":"upsell","text":"Any better package with faster speed"}
 {"label":"unknown","text":"hello"}
 {"label":"unknown","text":"thanks"}
+
+{"label": "sales", "text": "मुझे नया प्लान चाहिए"}
+{"label": "sales", "text": "मला नवीन प्लॅन घ्यायचा आहे"}
+{"label": "support", "text": "माझे इंटरनेट चालत नाही"}
+{"label": "refund", "text": "मला परतावा हवा आहे"}

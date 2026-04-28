@@ -5,3 +5,6 @@
 {"label":"refund","text":"Where is my refund amount"}
 {"label":"upsell","text":"Can I get a better data pack"}
 {"label":"unknown","text":"good morning"}
+
+{"label": "support", "text": "माझे नेट बंद आहे"}
+{"label": "faq", "text": "मेरा रिफंड कब मिलेगा"}

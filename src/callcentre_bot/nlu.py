@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from collections import Counter
+import re
 
 from .config import settings
 from .ml import NaiveBayesTextClassifier
@@ -15,6 +16,7 @@ class NLUResult:
     confidence: float
     model_version: str
     intent_distribution: dict[str, float]
+    language: str
 
 
 NORMALIZATION_MAP = {
@@ -26,7 +28,19 @@ NORMALIZATION_MAP = {
     "nahi": "not",
     "chal": "working",
     "net": "internet",
+    "मुझे": "mujhe",
+    "चाहिए": "chahiye",
+    "है": "hai",
+    "नहीं": "nahi",
+    "माझे": "maje",
+    "मला": "mala",
+    "पाहिजे": "pahije",
+    "नको": "nako",
 }
+
+DEVANAGARI_PATTERN = re.compile(r"[\u0900-\u097F]")
+HINGLISH_MARKERS = {"mujhe", "nahi", "kaise", "kya", "hai", "bill", "net"}
+MARATHI_MARKERS = {"माझे", "मला", "पाहिजे", "नको", "कृपया", "योजना", "पैसे"}
 
 
 class InHouseNLUEngine:
@@ -39,9 +53,19 @@ class InHouseNLUEngine:
         self._train_models()
 
     def _normalize(self, text: str) -> str:
-        words = text.lower().split()
+        words = re.findall(r"[\w\u0900-\u097F]+", text.lower())
         normalized = [NORMALIZATION_MAP.get(word, word) for word in words]
         return " ".join(normalized)
+
+    def detect_language(self, text: str) -> str:
+        lowered = text.lower()
+        if DEVANAGARI_PATTERN.search(text):
+            if any(marker in text for marker in MARATHI_MARKERS):
+                return "mr"
+            return "hi"
+        if any(marker in lowered.split() for marker in HINGLISH_MARKERS):
+            return "hinglish"
+        return "en"
 
     def _load_examples(self, file_name: str) -> list[tuple[str, str]]:
         path = Path(__file__).parent / "data" / file_name
@@ -118,8 +142,27 @@ class InHouseNLUEngine:
             return calibrated
         return thresholds.get(intent, settings.confidence_threshold)
 
-    def is_intent_confident(self, intent: Intent, confidence: float) -> bool:
-        return confidence >= self._intent_threshold(intent)
+    def _language_adjusted_threshold(self, intent: Intent, text: str) -> float:
+        base = self._intent_threshold(intent)
+        language = self.detect_language(text)
+        adjustments = {
+            "en": 0.0,
+            "hinglish": -0.05,
+            "hi": -0.07,
+            "mr": -0.10,
+        }
+        floors = {
+            "en": 0.35,
+            "hinglish": 0.33,
+            "hi": 0.32,
+            "mr": 0.30,
+        }
+        floor = floors.get(language, 0.35)
+        return max(floor, min(0.95, base + adjustments.get(language, 0.0)))
+
+    def is_intent_confident(self, intent: Intent, confidence: float, text: str = "") -> bool:
+        threshold = self._language_adjusted_threshold(intent, text) if text else self._intent_threshold(intent)
+        return confidence >= threshold
 
     def analyze(self, text: str) -> NLUResult:
         normalized = self._normalize(text)
@@ -137,10 +180,12 @@ class InHouseNLUEngine:
             sentiment = Sentiment.neutral
 
         confidence = (intent_conf + sentiment_conf) / 2
+        language = self.detect_language(text)
         return NLUResult(
             intent=intent,
             sentiment=sentiment,
             confidence=confidence,
             model_version=self.model_version,
             intent_distribution=self.training_intent_distribution,
+            language=language,
         )

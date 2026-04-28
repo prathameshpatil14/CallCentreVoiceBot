@@ -19,6 +19,9 @@ A contact-center sales/support assistant with **no third-party API/model depende
    - Campaign-specific conversation flows + disclaimers.
    - Confidence-aware clarification prompts + deterministic transfer policy (clarification/retry caps).
    - Lightweight policy reranker to choose best template/action from candidates.
+   - Brain-like control stack: planner + memory manager + reflection loop + safety governor.
+   - Consultative sales strategist for objection handling, value framing, and confident close prompts.
+   - Multilingual NLU readiness for English, Hinglish, Hindi, and Marathi (script-aware normalization + language-aware confidence).
    - Compliance guardrails for restricted phrases.
    - Human-like consciousness layer (emotion mirroring + customer-name recall for personalized responses).
 
@@ -50,6 +53,14 @@ A contact-center sales/support assistant with **no third-party API/model depende
 - `POST /v1/sessions`
 - `GET /v1/sessions/{session_id}`
 - `POST /v1/sessions/{session_id}/turns`
+- `POST /v1/sessions/{session_id}/voice-turns` (audio in + synthesized audio out via base64)
+- `POST /v1/sip/calls/start`
+- `GET /v1/sip/calls/{call_id}`
+- `POST /v1/sip/calls/{call_id}/media`
+- `POST /v1/sip/calls/{call_id}/dtmf`
+- `POST /v1/sip/calls/{call_id}/hold`
+- `POST /v1/sip/calls/{call_id}/resume`
+- `POST /v1/sip/calls/{call_id}/transfer`
 
 ## Run
 
@@ -70,6 +81,8 @@ python scripts/evaluate_models.py
 ```bash
 PYTHONPATH=src python scripts/load_test.py --base-url http://127.0.0.1:8080 --users 20 --turns 10
 PYTHONPATH=src python scripts/quality_review.py
+PYTHONPATH=src python scripts/run_voice_console.py --base-url http://127.0.0.1:8080
+PYTHONPATH=src pytest tests/test_sip.py -q
 ```
 
 ## Environment variables
@@ -84,6 +97,27 @@ PYTHONPATH=src python scripts/quality_review.py
 - `MAX_REQUEST_BYTES` (default `32768`)
 - `RATE_LIMIT_PER_MINUTE` (default `120`)
 - `MODEL_VARIANT` (default `A`; supports simple A/B behavior)
+- `VOICE_ENGINE_MODE` (`auto` / `production` / `fallback`, default `auto`)
+- `WHISPER_COMMAND` (default `whisper-cli`)
+- `PIPER_COMMAND` (default `piper`)
+- `PIPER_MODEL_PATH` (required for production TTS mode)
+- `PIPER_MODEL_PATH_HI` (optional Hindi TTS model path)
+- `PIPER_MODEL_PATH_MR` (optional Marathi TTS model path)
+- `VOICE_FALLBACK_ENABLED` (default `true`; set `false` to fail fast if production voice engine is unavailable)
+- `ASR_DEFAULT_LANGUAGE` (default `auto`; supports `en`, `hi`, `mr` for whisper hinting)
+
+## Production voice engine setup
+
+For real voice quality, install local engines on your machine and run in production mode:
+
+```bash
+export VOICE_ENGINE_MODE=production
+export WHISPER_COMMAND=whisper-cli
+export PIPER_COMMAND=piper
+export PIPER_MODEL_PATH=/absolute/path/to/piper-model.onnx
+export VOICE_FALLBACK_ENABLED=false
+python -m callcentre_bot.main
+```
 
 
 ## What these two APIs do

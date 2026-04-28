@@ -5,3 +5,7 @@
 {"label":"refund","text":"Please start refund for failed recharge"}
 {"label":"upsell","text":"Upsell me to premium broadband"}
 {"label":"unknown","text":"can you hear me"}
+
+{"label": "sales", "text": "मुझे फैमिली प्लान खरीदना है"}
+{"label": "support", "text": "माझे इंटरनेट काम करत नाही"}
+{"label": "refund", "text": "मला रिफंड पाहिजे"}

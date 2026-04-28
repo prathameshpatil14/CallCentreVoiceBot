@@ -7,14 +7,17 @@ from threading import Thread
 import time
 from uuid import UUID
 
+from .brain import BrainMemory, MemoryManager, Planner, ReflectionLoop, SafetyGovernor, SalesStrategist
 from .config import settings
 from .db import SessionPersistence, create_store
 from .flows import CAMPAIGN_FLOWS, RESTRICTED_PHRASES
 from .knowledge import KnowledgeRepository
-from .models import AssistantTurnResponse, Intent, Journey, JourneyStateName, Sentiment, SessionState
+from .models import AssistantTurnResponse, Intent, Journey, JourneyStateName, Sentiment, SessionState, VoiceTurnResponse
 from .nlu import InHouseNLUEngine
 from .observability import AuditLogger, DriftMonitor, MetricStore, StructuredLogger, redact_pii
 from .policy import PolicyCandidate, PolicyReranker
+from .voice import AudioChunk, VoiceActivityDetector, build_asr_adapter, build_tts_adapter
+import base64
 
 
 @dataclass
@@ -64,8 +67,68 @@ class VoiceSalesAssistantService:
         self.sessions = SessionStore(self.store)
         self.drift = DriftMonitor(self.nlu.training_intent_distribution)
         self.reranker = PolicyReranker()
+        self.planner = Planner()
+        self.memory_manager = MemoryManager()
+        self.reflection = ReflectionLoop()
+        self.safety_governor = SafetyGovernor()
+        self.sales_strategist = SalesStrategist()
+        self.vad = VoiceActivityDetector()
+        self.asr = build_asr_adapter(
+            mode=settings.voice_engine_mode,
+            whisper_command=settings.whisper_command,
+            fallback_enabled=settings.voice_fallback_enabled,
+        )
+        self.tts = build_tts_adapter(
+            mode=settings.voice_engine_mode,
+            piper_command=settings.piper_command,
+            piper_model_path=settings.piper_model_path,
+            fallback_enabled=settings.voice_fallback_enabled,
+            multilingual_models={
+                "hi": settings.piper_model_path_hi,
+                "mr": settings.piper_model_path_mr,
+            },
+        )
+        self._brain_memories: dict[UUID, BrainMemory] = {}
+        self._brain_lock = Lock()
         self._start_archival_worker()
         self._start_drift_reporter()
+
+    def _memory_for_session(self, session_id: UUID) -> BrainMemory:
+        with self._brain_lock:
+            memory = self._brain_memories.get(session_id)
+            if memory is None:
+                memory = BrainMemory()
+                self._brain_memories[session_id] = memory
+            return memory
+
+    def apply_external_context(
+        self,
+        *,
+        session_id: UUID,
+        account_id: str = "",
+        campaign: str = "default",
+        ani: str = "",
+        dnis: str = "",
+        transfer_metadata: dict[str, str] | None = None,
+    ) -> None:
+        state = self.sessions.get(session_id)
+        if state is None:
+            state = self.sessions.create(session_id)
+        if account_id:
+            state.account_id = account_id
+        if campaign:
+            state.campaign = campaign
+        if ani:
+            state.unresolved_issues.append(f"ani:{ani}")
+        if dnis:
+            state.unresolved_issues.append(f"dnis:{dnis}")
+        if transfer_metadata:
+            for key, value in transfer_metadata.items():
+                if value:
+                    state.unresolved_issues.append(f"transfer_{key}:{value}")
+        state.unresolved_issues = state.unresolved_issues[-10:]
+        state.updated_at_utc = datetime.now(timezone.utc)
+        self.sessions.save(state)
 
     def _start_archival_worker(self) -> None:
         def _loop() -> None:
@@ -164,7 +227,15 @@ class VoiceSalesAssistantService:
 
         return response_text
 
-    def decide_response(self, state: SessionState, text: str, intent: Intent, sentiment: Sentiment, confidence: float) -> Decision:
+    def decide_response(
+        self,
+        state: SessionState,
+        text: str,
+        intent: Intent,
+        sentiment: Sentiment,
+        confidence: float,
+        memory: BrainMemory | None = None,
+    ) -> Decision:
         faq_answer, faq_score = self.knowledge.best_faq_match(text)
         product, product_score = self.knowledge.best_product_match(text)
         candidates: list[PolicyCandidate] = []
@@ -192,6 +263,14 @@ class VoiceSalesAssistantService:
                         text=f"{product.name} is {product.price}. {product.pitch} {disclaimer} Would you like me to place the order now?"
                     )
                 )
+            if memory is not None:
+                for suggestion in self.sales_strategist.suggest(
+                    memory=memory,
+                    customer_name=state.customer_name,
+                    product_name=product.name,
+                    user_text=text,
+                ):
+                    candidates.append(PolicyCandidate(text=suggestion.text))
 
         if intent == Intent.support:
             candidates.append(PolicyCandidate(text="I can help troubleshoot. Please share what is failing and when it started."))
@@ -234,8 +313,24 @@ class VoiceSalesAssistantService:
 
         self._extract_context(state, text)
         nlu_result = self.nlu.analyze(text)
-        confident = self.nlu.is_intent_confident(nlu_result.intent, nlu_result.confidence)
-        decision = self.decide_response(state, text, nlu_result.intent, nlu_result.sentiment, nlu_result.confidence)
+        confident = self.nlu.is_intent_confident(nlu_result.intent, nlu_result.confidence, text=text)
+        memory = self._memory_for_session(session_id)
+        self.memory_manager.update_from_turn(memory, state, text, nlu_result.intent)
+        plan = self.planner.build_plan(
+            state=state,
+            intent=nlu_result.intent,
+            sentiment=nlu_result.sentiment,
+            confident=confident,
+            user_text=text,
+        )
+        decision = self.decide_response(
+            state,
+            text,
+            nlu_result.intent,
+            nlu_result.sentiment,
+            nlu_result.confidence,
+            memory=memory,
+        )
 
         if nlu_result.sentiment.value == "negative":
             state.consecutive_negative_turns += 1
@@ -261,6 +356,20 @@ class VoiceSalesAssistantService:
             sentiment=nlu_result.sentiment,
             escalate=escalate,
         )
+        reflection = self.reflection.reflect(plan=plan, response_text=response_text, confidence=nlu_result.confidence)
+        response_text = reflection.response_text
+
+        safety = self.safety_governor.evaluate(response_text)
+        response_text = safety.safe_text
+        escalate = escalate or safety.escalate
+        if safety.reason != "ok":
+            self.audit.audit(
+                "safety_governor",
+                request_id=request_id,
+                session_id=str(session_id),
+                reason=safety.reason,
+                escalated=safety.escalate,
+            )
         response_text = self._enforce_compliance(response_text)
 
         state.turns += 1
@@ -319,4 +428,62 @@ class VoiceSalesAssistantService:
             escalate_to_human=escalate,
             session_id=session_id,
             request_id=request_id,
+        )
+
+    def handle_voice_turn(self, session_id: UUID, request_id: str, audio_bytes: bytes, sample_rate_hz: int = 16000) -> VoiceTurnResponse:
+        fallback_used = False
+        fallback_reason = ""
+
+        audio = AudioChunk(pcm16_bytes=audio_bytes, sample_rate_hz=sample_rate_hz)
+        if not self.vad.is_speech(audio):
+            transcript = ""
+            text_reply = "I could not hear speech clearly. Please speak again after the beep."
+            fallback_used = True
+            fallback_reason = "no_speech_detected"
+        else:
+            transcript = self.asr.transcribe(audio, language_hint=settings.asr_default_language).strip()
+            if not transcript:
+                text_reply = "I could not transcribe that. Please repeat your request."
+                fallback_used = True
+                fallback_reason = "asr_unintelligible"
+            else:
+                turn = self.handle_turn(session_id=session_id, request_id=request_id, text=transcript)
+                text_reply = turn.text
+
+        audio_base64 = ""
+        synthesized_rate = sample_rate_hz
+        response_language = self.nlu.detect_language(transcript or text_reply)
+        try:
+            spoken = self.tts.synthesize(text_reply, language=response_language)
+            audio_base64 = base64.b64encode(spoken.pcm16_bytes).decode("ascii")
+            synthesized_rate = spoken.sample_rate_hz
+        except Exception:
+            fallback_used = True
+            fallback_reason = fallback_reason or "tts_failure"
+
+        if transcript:
+            nlu_result = self.nlu.analyze(transcript)
+            intent = nlu_result.intent
+            sentiment = nlu_result.sentiment
+            confidence = nlu_result.confidence
+            escalate = self.sessions.get(session_id).escalated if self.sessions.get(session_id) else False
+        else:
+            intent = Intent.unknown
+            sentiment = Sentiment.neutral
+            confidence = 0.0
+            escalate = False
+
+        return VoiceTurnResponse(
+            text=text_reply,
+            transcript=transcript,
+            audio_base64=audio_base64,
+            sample_rate_hz=synthesized_rate,
+            intent=intent,
+            sentiment=sentiment,
+            confidence=confidence,
+            escalate_to_human=escalate,
+            session_id=session_id,
+            request_id=request_id,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
         )
