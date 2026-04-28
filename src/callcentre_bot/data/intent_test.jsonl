@@ -5,7 +5,11 @@
 {"label":"refund","text":"Please start refund for failed recharge"}
 {"label":"upsell","text":"Upsell me to premium broadband"}
 {"label":"unknown","text":"can you hear me"}
-
-{"label": "sales", "text": "मुझे फैमिली प्लान खरीदना है"}
-{"label": "support", "text": "माझे इंटरनेट काम करत नाही"}
-{"label": "refund", "text": "मला रिफंड पाहिजे"}
+{"label":"sales","text":"मुझे फैमिली प्लान खरीदना है"}
+{"label":"support","text":"माझे इंटरनेट काम करत नाही"}
+{"label":"refund","text":"मला रिफंड पाहिजे"}
+{"label":"sales","text":"Mujhe ek naya prepaid connection chahiye"}
+{"label":"faq","text":"What are your customer care working hours?"}
+{"label":"support","text":"माझे इंटरनेट वारंवार बंद होते आहे"}
+{"label":"escalation","text":"This is urgent, transfer me to senior agent"}
+{"label":"upsell","text":"Add extra data booster on my active plan"}

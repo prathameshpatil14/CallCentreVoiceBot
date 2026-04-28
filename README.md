@@ -1,6 +1,7 @@
 # CallCentreVoiceBot - Production-Oriented In-House Assistant
 
-A contact-center sales/support assistant with **no third-party API/model dependency**.
+A contact-center sales/support assistant with **no third-party hosted API/model dependency**.
+The codebase can use local third-party Python libraries for performance and accuracy improvements.
 
 ## Implemented roadmap items
 
