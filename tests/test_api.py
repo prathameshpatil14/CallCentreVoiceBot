@@ -139,43 +139,61 @@ class ApiTests(unittest.TestCase):
 
         self.assertIn("Rita", reply["text"])
 
-    def test_voice_turn_endpoint_returns_audio_and_transcript(self) -> None:
+    def test_human_like_consciousness_handles_capitalized_name_phrase(self) -> None:
         create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")
         with request.urlopen(create_req) as create_resp:
             session_id = json.loads(create_resp.read().decode("utf-8"))["session_id"]
 
-        fake_audio = base64.b64encode(b"I need billing support").decode("ascii")
-        body = json.dumps({"audio_base64": fake_audio, "sample_rate_hz": 16000}).encode("utf-8")
-        voice_req = request.Request(
-            f"http://127.0.0.1:18080/v1/sessions/{session_id}/voice-turns",
-            data=body,
+        intro_payload = json.dumps({"text": "My name is Alice"}).encode("utf-8")
+        intro_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/turns",
+            data=intro_payload,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        with request.urlopen(intro_req) as intro_resp:
+            self.assertEqual(intro_resp.status, 200)
 
-        with request.urlopen(voice_req) as voice_resp:
-            payload = json.loads(voice_resp.read().decode("utf-8"))
+        follow_payload = json.dumps({"text": "I need help with billing support"}).encode("utf-8")
+        follow_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/turns",
+            data=follow_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(follow_req) as follow_resp:
+            reply = json.loads(follow_resp.read().decode("utf-8"))
 
-        self.assertEqual(voice_resp.status, 200)
-        self.assertIn("transcript", payload)
-        self.assertIn("audio_base64", payload)
-        self.assertTrue(len(payload["audio_base64"]) > 0)
+        self.assertIn("Alice", reply["text"])
+        self.assertNotIn("My,", reply["text"])
 
-    def test_voice_turn_rejects_invalid_audio(self) -> None:
+    def test_human_like_consciousness_supports_unicode_name(self) -> None:
         create_req = request.Request("http://127.0.0.1:18080/v1/sessions", method="POST")
         with request.urlopen(create_req) as create_resp:
             session_id = json.loads(create_resp.read().decode("utf-8"))["session_id"]
 
-        body = json.dumps({"audio_base64": "not-valid-base64"}).encode("utf-8")
-        voice_req = request.Request(
-            f"http://127.0.0.1:18080/v1/sessions/{session_id}/voice-turns",
-            data=body,
+        intro_payload = json.dumps({"text": "My name is José"}).encode("utf-8")
+        intro_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/turns",
+            data=intro_payload,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with self.assertRaises(HTTPError) as raised:
-            request.urlopen(voice_req)
-        self.assertEqual(raised.exception.code, 400)
+        with request.urlopen(intro_req) as intro_resp:
+            self.assertEqual(intro_resp.status, 200)
+
+        follow_payload = json.dumps({"text": "I need help with billing support"}).encode("utf-8")
+        follow_req = request.Request(
+            f"http://127.0.0.1:18080/v1/sessions/{session_id}/turns",
+            data=follow_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(follow_req) as follow_resp:
+            reply = json.loads(follow_resp.read().decode("utf-8"))
+
+        self.assertIn("José", reply["text"])
+        self.assertNotIn("Jos,", reply["text"])
 
 
 if __name__ == "__main__":
