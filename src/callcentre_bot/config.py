@@ -38,6 +38,7 @@ class Settings:
     piper_model_path_mr: str
     voice_fallback_enabled: bool
     asr_default_language: str
+    log_structured_events: bool
 
 
 def _float_env(name: str, default: float) -> float:
@@ -97,4 +98,5 @@ settings = Settings(
     piper_model_path_mr=os.getenv("PIPER_MODEL_PATH_MR", "").strip(),
     voice_fallback_enabled=os.getenv("VOICE_FALLBACK_ENABLED", "true").strip().lower() in {"1", "true", "yes"},
     asr_default_language=os.getenv("ASR_DEFAULT_LANGUAGE", "auto").strip().lower(),
+    log_structured_events=os.getenv("LOG_STRUCTURED_EVENTS", "false").strip().lower() in {"1", "true", "yes"},
 )

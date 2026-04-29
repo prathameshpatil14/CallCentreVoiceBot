@@ -1,6 +1,7 @@
 # CallCentreVoiceBot - Production-Oriented In-House Assistant
 
-A contact-center sales/support assistant with **no third-party API/model dependency**.
+A contact-center sales/support assistant with **no third-party hosted API/model dependency**.
+The codebase can use local third-party Python libraries for performance and accuracy improvements.
 
 ## Implemented roadmap items
 
@@ -105,6 +106,7 @@ PYTHONPATH=src pytest tests/test_sip.py -q
 - `PIPER_MODEL_PATH_MR` (optional Marathi TTS model path)
 - `VOICE_FALLBACK_ENABLED` (default `true`; set `false` to fail fast if production voice engine is unavailable)
 - `ASR_DEFAULT_LANGUAGE` (default `auto`; supports `en`, `hi`, `mr` for whisper hinting)
+- `LOG_STRUCTURED_EVENTS` (default `false`; set `true` to print JSON audit/drift events to stdout)
 
 ## Production voice engine setup
 

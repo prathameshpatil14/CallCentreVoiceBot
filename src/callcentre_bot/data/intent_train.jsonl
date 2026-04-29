@@ -20,8 +20,17 @@
 {"label":"upsell","text":"Any better package with faster speed"}
 {"label":"unknown","text":"hello"}
 {"label":"unknown","text":"thanks"}
-
-{"label": "sales", "text": "मुझे नया प्लान चाहिए"}
-{"label": "sales", "text": "मला नवीन प्लॅन घ्यायचा आहे"}
-{"label": "support", "text": "माझे इंटरनेट चालत नाही"}
-{"label": "refund", "text": "मला परतावा हवा आहे"}
+{"label":"sales","text":"मुझे नया प्लान चाहिए"}
+{"label":"sales","text":"मला नवीन प्लॅन घ्यायचा आहे"}
+{"label":"support","text":"माझे इंटरनेट चालत नाही"}
+{"label":"refund","text":"मला परतावा हवा आहे"}
+{"label":"sales","text":"Please suggest the best postpaid plan for my family"}
+{"label":"support","text":"My recharge is done but data is not active yet"}
+{"label":"escalation","text":"I already called twice, connect me to supervisor now"}
+{"label":"refund","text":"The payment failed and money was deducted, I need a refund"}
+{"label":"upsell","text":"Can you add international roaming to my current plan"}
+{"label":"faq","text":"Can I convert my physical SIM to eSIM today?"}
+{"label":"support","text":"SMS OTP is not arriving on my number since morning"}
+{"label":"sales","text":"Suggest best plan under 499 with unlimited calls"}
+{"label":"upsell","text":"Please add OTT plus sports bundle to this connection"}
+{"label":"escalation","text":"I want to file formal complaint, connect escalation desk"}
