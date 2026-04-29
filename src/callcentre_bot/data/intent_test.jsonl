@@ -5,7 +5,16 @@
 {"label":"refund","text":"Please start refund for failed recharge"}
 {"label":"upsell","text":"Upsell me to premium broadband"}
 {"label":"unknown","text":"can you hear me"}
-
-{"label": "sales", "text": "मुझे फैमिली प्लान खरीदना है"}
-{"label": "support", "text": "माझे इंटरनेट काम करत नाही"}
-{"label": "refund", "text": "मला रिफंड पाहिजे"}
+{"label":"sales","text":"मुझे फैमिली प्लान खरीदना है"}
+{"label":"support","text":"माझे इंटरनेट काम करत नाही"}
+{"label":"refund","text":"मला रिफंड पाहिजे"}
+{"label":"sales","text":"Mujhe ek naya prepaid connection chahiye"}
+{"label":"faq","text":"What are your customer care working hours?"}
+{"label":"support","text":"माझे इंटरनेट वारंवार बंद होते आहे"}
+{"label":"escalation","text":"This is urgent, transfer me to senior agent"}
+{"label":"upsell","text":"Add extra data booster on my active plan"}
+{"label":"refund","text":"Kindly reverse the wrong recharge done on my number"}
+{"label":"faq","text":"Is doorstep SIM delivery available in Pune?"}
+{"label":"support","text":"My caller tune activation is failing repeatedly"}
+{"label":"sales","text":"मुझे ऑफिस के लिए बल्क कनेक्शन चाहिए"}
+{"label":"upsell","text":"Enable 5G booster pack on my existing line"}
