@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from threading import Lock
 
+from .config import settings
 from .json_codec import dumps
 
 
@@ -27,6 +28,8 @@ def redact_pii(text: str) -> str:
 
 class StructuredLogger:
     def info(self, event: str, **kwargs: object) -> None:
+        if not settings.log_structured_events:
+            return
         payload = {"event": event, "ts": time.time(), **kwargs}
         print(dumps(payload))
 
