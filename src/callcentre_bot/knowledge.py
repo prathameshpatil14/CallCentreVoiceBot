@@ -34,6 +34,7 @@ FAQ = {
     "cancel": "You can cancel by verified phone request or from your account portal.",
     "support": "Technical support is available 24/7 on this line.",
     "upgrade": "I can compare your current plan and recommend an upgrade option now.",
+    "insurance": "We can share policy benefits, coverage, exclusions, and premium options based on your needs.",
 }
 
 
